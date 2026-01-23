@@ -5,6 +5,7 @@ import 'package:mesasnsps/model/provider/table_provider.dart';
 import 'package:mesasnsps/model/table.dart';
 import 'package:mesasnsps/screens/table_map_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ReservationDetailScreen extends StatelessWidget {
   final String userName;
@@ -88,10 +89,27 @@ class ReservationDetailScreen extends StatelessWidget {
                   const SizedBox(height: 32),
 
                   // --- INFO CARDS ---
+                  // --- INFO CARDS ---
                   _buildInfoTile(
                     label: "Telefone de Contato",
                     value: firstTable.phoneNumber ?? "Não informado",
                     icon: Icons.phone_android_rounded,
+                    // Adicionamos a ação do WhatsApp aqui
+                    trailing: firstTable.phoneNumber != null
+                        ? IconButton(
+                            icon: const Icon(
+                              Icons
+                                  .chat_bubble_outline_rounded, // Ícone nativo que funciona como const
+                              color: Color(0xFF25D366),
+                              size: 28,
+                            ),
+                            onPressed: () => _launchWhatsApp(
+                              firstTable.phoneNumber!,
+                              userName,
+                              isPaid,
+                            ),
+                          )
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
@@ -123,17 +141,27 @@ class ReservationDetailScreen extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
-                      child: Image.file(
-                        File(firstTable.receiptPath!),
-                        width: double.infinity,
-                        height: 250,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          height: 100,
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.broken_image),
+                    GestureDetector(
+                      onTap: () => _showFullScreenImage(
+                        context,
+                        firstTable.receiptPath!,
+                      ),
+                      child: Hero(
+                        tag: 'receipt_image',
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(15),
+                          child: Image.file(
+                            File(firstTable.receiptPath!),
+                            width: double.infinity,
+                            height: 250,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) =>
+                                Container(
+                                  height: 100,
+                                  color: Colors.grey[200],
+                                  child: const Icon(Icons.broken_image),
+                                ),
+                          ),
                         ),
                       ),
                     ),
@@ -215,55 +243,7 @@ class ReservationDetailScreen extends StatelessWidget {
                       padding: const EdgeInsets.all(8.0),
                       child: ElevatedButton.icon(
                         onPressed: () {
-                          // Abre diálogo de confirmação
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text("Liberar Mesas?"),
-                              content: Text(
-                                "Deseja realmente remover a reserva de $userName?",
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text(
-                                    "CANCELAR",
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    final provider = Provider.of<TableProvider>(
-                                      context,
-                                      listen: false,
-                                    );
-                                    // Chama o método para limpar as mesas do usuário
-                                    provider.clearReservation(userName);
-
-                                    Navigator.pop(context); // Fecha o diálogo
-                                    Navigator.pop(
-                                      context,
-                                    ); // Volta para a tela de listagem
-
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          "Reserva de $userName liberada!",
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: const Text(
-                                    "LIBERAR",
-                                    style: TextStyle(
-                                      color: Colors.red,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
+                          showLiberateDialog(context, userName);
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFFFFEBEE),
@@ -295,11 +275,192 @@ class ReservationDetailScreen extends StatelessWidget {
     );
   }
 
+  void showLiberateDialog(BuildContext context, String userName) {
+    // Declaramos a variável de controle FORA do builder do StatefulBuilder
+    bool isClearing = false;
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: false,
+      barrierLabel: "",
+      transitionDuration: const Duration(milliseconds: 300),
+      pageBuilder: (context, anim1, anim2) => const SizedBox(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return Transform.scale(
+          scale: Curves.fastOutSlowIn.transform(anim1.value),
+          child: Opacity(
+            opacity: anim1.value,
+            child: StatefulBuilder(
+              builder: (context, setModalState) {
+                // Renomeado para evitar conflito
+                return AlertDialog(
+                  backgroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(28),
+                  ),
+                  content: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    // O layout muda suavemente quando isClearing altera
+                    child: isClearing
+                        ? Column(
+                            key: const ValueKey('loading'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(height: 30),
+                              const CircularProgressIndicator(
+                                color: Colors.redAccent,
+                                strokeWidth: 3,
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                "Limpando reserva...",
+                                style: TextStyle(
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                            ],
+                          )
+                        : Column(
+                            key: const ValueKey('content'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.red[50],
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.no_meeting_room_rounded,
+                                  color: Colors.redAccent,
+                                  size: 40,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              const Text(
+                                "Liberar Mesas?",
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF2D3250),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                "Deseja remover a reserva de $userName?",
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: Colors.grey,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                  ),
+                  actions: isClearing
+                      ? [] // Esconde os botões durante o loading
+                      : [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: TextButton(
+                                    onPressed: () => Navigator.pop(context),
+                                    child: const Text(
+                                      "CANCELAR",
+                                      style: TextStyle(
+                                        color: Colors.grey,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.redAccent,
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    onPressed: () async {
+                                      // AGORA SIM: Notifica o StatefulBuilder para reconstruir com loading
+                                      setModalState(() => isClearing = true);
+
+                                      final provider =
+                                          Provider.of<TableProvider>(
+                                            context,
+                                            listen: false,
+                                          );
+
+                                      // Garantimos que o loading apareça por pelo menos 1 segundo
+                                      await Future.wait([
+                                        provider.clearReservation(userName),
+                                        Future.delayed(
+                                          const Duration(
+                                            seconds: 2,
+                                            milliseconds: 50,
+                                          ),
+                                        ),
+                                      ]);
+
+                                      if (context.mounted) {
+                                        Navigator.pop(context); // Fecha diálogo
+                                        Navigator.pop(
+                                          context,
+                                        ); // Volta tela principal
+
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              "Reserva de $userName liberada!",
+                                            ),
+                                            backgroundColor: Colors.redAccent,
+                                            behavior: SnackBarBehavior.floating,
+                                            margin: const EdgeInsets.all(15),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: const Text(
+                                      "LIBERAR",
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // --- WIDGETS AUXILIARES ---
   Widget _buildInfoTile({
     required String label,
     required String value,
     required IconData icon,
+    Widget? trailing, // Novo parâmetro opcional
   }) {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -319,29 +480,33 @@ class ReservationDetailScreen extends StatelessWidget {
             child: Icon(icon, color: accentBlue, size: 22),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: accentBlue.withOpacity(0.7),
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
+          Expanded(
+            // Adicionado Expanded para não dar overflow com o ícone
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: accentBlue.withOpacity(0.7),
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: primaryDark,
-                  fontWeight: FontWeight.w900,
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: primaryDark,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
+          if (trailing != null) trailing, // Mostra o ícone do Zap se existir
         ],
       ),
     );
@@ -365,4 +530,72 @@ class ReservationDetailScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _launchWhatsApp(String phone, String name, bool isPaid) async {
+  try {
+    // Limpa o número e garante que não tenha zero no início do DDD
+    String cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = cleanPhone.substring(1);
+    }
+
+    final String message = isPaid
+        ? "Olá $name! Confirmamos seu pagamento para as mesas. Até lá!"
+        : "Olá $name, sua reserva está pendente. Por favor, confirme o pagamento para garantir suas mesas. Não perca essa chance!";
+
+    final Uri url = Uri.parse(
+      "https://wa.me/55$cleanPhone?text=${Uri.encodeComponent(message)}",
+    );
+
+    // Verifica se pode abrir antes de tentar
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      // Caso não consiga abrir o link wa.me, tenta o formato direto api.whatsapp
+      final Uri fallbackUrl = Uri.parse(
+        "whatsapp://send?phone=55$cleanPhone&text=${Uri.encodeComponent(message)}",
+      );
+      await launchUrl(fallbackUrl);
+    }
+  } catch (e) {
+    debugPrint("Erro ao abrir WhatsApp: $e");
+  }
+}
+
+void _showFullScreenImage(BuildContext context, String path) {
+  showDialog(
+    context: context,
+    builder: (context) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.zero, // Faz o dialog ocupar a tela toda
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Área clicável fora da imagem para fechar
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(color: Colors.black87),
+          ),
+          // A Imagem
+          InteractiveViewer(
+            // Permite Pinch-to-Zoom (zoom com os dedos)
+            panEnabled: true,
+            minScale: 0.5,
+            maxScale: 4.0,
+            child: Image.file(File(path), fit: BoxFit.contain),
+          ),
+          // Botão de fechar no topo
+          Positioned(
+            top: 40,
+            right: 20,
+            child: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white, size: 30),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
