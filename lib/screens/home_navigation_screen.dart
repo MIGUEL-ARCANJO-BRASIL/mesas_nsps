@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/screens/config_screen.dart';
+import 'package:mesasnsps/screens/events_selection_screen.dart';
 import 'package:mesasnsps/screens/list_reserved_table_screen.dart';
 import 'package:mesasnsps/screens/table_map_screen.dart';
 // Importe aqui seus arquivos de tela
@@ -19,6 +20,7 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
 
   // Lista de widgets das telas (em inglês)
   final List<Widget> screens = [
+    EventSelectionScreen(),
     ListReservedTableScreen(),
     TableMapScreen(),
     ConfigsScreen(),
@@ -44,13 +46,14 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
         unselectedItemColor: Colors.grey,
         // Textos de exibição em PORTUGUÊS
         items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Eventos'),
           BottomNavigationBarItem(
             icon: Icon(Icons.grid_view),
-            label: 'Mapa de Mesas',
+            label: 'Lista de Reservas',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.format_list_bulleted),
-            label: 'Lista de Reservas',
+            label: 'Mapa de Mesas',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),

@@ -203,7 +203,9 @@ class _ListReservedTableScreenState extends State<ListReservedTableScreen> {
                     radius: 24,
                     backgroundColor: primaryDark.withOpacity(0.05),
                     child: Text(
-                      name[0].toUpperCase(),
+                      name.isNotEmpty
+                          ? name[0].toUpperCase()
+                          : '?', // Check if not empty
                       style: const TextStyle(
                         color: primaryDark,
                         fontWeight: FontWeight.bold,

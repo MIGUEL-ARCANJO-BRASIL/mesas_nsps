@@ -6,13 +6,11 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
 import 'package:mesasnsps/model/table.dart';
 import 'package:mesasnsps/screens/config_screen.dart';
-import 'package:mesasnsps/screens/reservation_detail_screen.dart';
 import 'package:provider/provider.dart';
 
 class TableMapScreen extends StatelessWidget {
   const TableMapScreen({super.key});
 
-  // --- CONFIGURAÇÃO VISUAL ---
   static const Color primaryDark = Color(0xFF2D3250);
   static const Color accentBlue = Color(0xFF7077A1);
   static const Color bgCanvas = Color(0xFFF6F6F9);
@@ -30,36 +28,25 @@ class TableMapScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final provider = Provider.of<TableProvider>(context);
 
-    // Identificação de dados para Edição
     String? editingName;
-    if (provider.selectedNumbers.isNotEmpty) {
-      // Tentamos achar qualquer mesa na seleção que já tenha um dono
-      try {
-        final tableWithUser = provider.tables.firstWhere(
-          (t) =>
-              provider.selectedNumbers.contains(t.number) && t.userName != null,
-        );
-        editingName = tableWithUser.userName;
-      } catch (_) {
-        editingName = null;
-      }
-    }
     String? editingPhone;
     String? editingMethod;
     String? editingPath;
     bool wasPaid = false;
 
     if (provider.selectedNumbers.isNotEmpty) {
-      final firstTable = provider.tables.firstWhere(
-        (t) => t.number == provider.selectedNumbers.first,
-        orElse: () => provider.tables.first,
-      );
-      if (firstTable.userName != null) {
+      try {
+        final firstTable = provider.tables.firstWhere(
+          (t) =>
+              provider.selectedNumbers.contains(t.number) && t.userName != null,
+        );
         editingName = firstTable.userName;
         editingPhone = firstTable.phoneNumber;
         editingMethod = firstTable.paymentMethod;
         editingPath = firstTable.receiptPath;
         wasPaid = firstTable.status == TableStatusEnum.paid;
+      } catch (_) {
+        editingName = null;
       }
     }
 
@@ -110,7 +97,6 @@ class TableMapScreen extends StatelessWidget {
             child: SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   _legendItemCompact(
                     colorLivreText,
@@ -147,7 +133,6 @@ class TableMapScreen extends StatelessWidget {
           ),
         ),
       ),
-
       body: Stack(
         children: [
           InteractiveViewer(
@@ -161,25 +146,13 @@ class TableMapScreen extends StatelessWidget {
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
               ),
-              itemCount:
-                  provider.tables.length +
-                  18, // Aumentamos o espaço para o bloco central
+              itemCount: provider.tables.length + 18,
               itemBuilder: (context, index) {
-                // --- DEFINIÇÃO DO PALCO E BLOCOS AZUIS (3x2 no centro) ---
-                // Linha 1: colunas 4, 5, 6 (índices 3, 4, 5)
-                // Linha 2: colunas 4, 5, 6 (índices 12, 13, 14)
-
                 List<int> areaCentral = [3, 4, 5, 12, 13, 14];
-
                 if (areaCentral.contains(index)) {
-                  bool isPalcoReal =
-                      index == 4 || index == 13; // O "miolo" do bloco azul
-
                   return Container(
                     decoration: BoxDecoration(
-                      // O "bloco azul" em torno do palco (accentBlue ou primaryDark com opacidade)
                       color: primaryDark,
-
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: index == 4
@@ -192,17 +165,13 @@ class TableMapScreen extends StatelessWidget {
                   );
                 }
 
-                // --- LÓGICA DE MAPEAMENTO DAS MESAS ---
-                // Subtraímos os 6 espaços que "roubamos" para o complexo do palco
                 int tablesToSubtract = 0;
                 if (index > 5) tablesToSubtract += 3;
                 if (index > 14) tablesToSubtract += 3;
-
                 int tableIndex = index - tablesToSubtract;
 
-                if (tableIndex >= provider.tables.length || tableIndex < 0) {
+                if (tableIndex >= provider.tables.length || tableIndex < 0)
                   return const SizedBox.shrink();
-                }
 
                 final table = provider.tables[tableIndex];
                 final isSelected = provider.selectedNumbers.contains(
@@ -217,6 +186,21 @@ class TableMapScreen extends StatelessWidget {
                         isSelected ||
                         isHisTable) {
                       provider.toggleTableSelection(table.number);
+                    }
+                  },
+                  onLongPress: () {
+                    // Lógica de "segurar" (clique longo)
+                    if (table.status != TableStatusEnum.available) {
+                      _showReservationDialog(
+                        context,
+                        [table.number],
+                        provider,
+                        initialName: table.userName,
+                        initialPhone: table.phoneNumber,
+                        initialPaid: table.status == TableStatusEnum.paid,
+                        initialMethod: table.paymentMethod,
+                        initialPath: table.receiptPath,
+                      );
                     }
                   },
                   child: AnimatedContainer(
@@ -250,8 +234,6 @@ class TableMapScreen extends StatelessWidget {
               },
             ),
           ),
-
-          // 2. A LEGENDA POSICIONADA E O BOTÃO (Unificados para não bugarem)
           Positioned(
             left: 0,
             right: 0,
@@ -259,8 +241,7 @@ class TableMapScreen extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (provider.selectedNumbers.isNotEmpty) ...[
-                  const SizedBox(height: 16),
+                if (provider.selectedNumbers.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 40),
                     child: SizedBox(
@@ -296,14 +277,11 @@ class TableMapScreen extends StatelessWidget {
                       ),
                     ),
                   ),
-                ],
               ],
             ),
           ),
         ],
       ),
-      // Remova o floatingActionButton: do Scaffold, pois agora ele está dentro do Stack acima!
-      floatingActionButton: null,
     );
   }
 
@@ -331,16 +309,12 @@ void _showReservationDialog(
   String? initialPath,
 }) {
   final nameController = TextEditingController(text: initialName);
-  final phoneController = TextEditingController(text: initialPhone);
-  final _formKey = GlobalKey<FormState>();
-
   final phoneMask = MaskTextInputFormatter(
     mask: '(##) #####-####',
     filter: {"#": RegExp(r'[0-9]')},
     initialText: initialPhone,
   );
 
-  // Cálculos de Valores
   final double unitPrice = provider.globalPrice;
   final double totalPrice = unitPrice * selectedNumbers.length;
 
@@ -348,77 +322,60 @@ void _showReservationDialog(
     context: context,
     barrierDismissible: false,
     builder: (context) {
-      // Variáveis declaradas aqui persistem enquanto o Dialog estiver aberto
       bool isPaid = initialPaid;
       String? method = (initialMethod == "Pix" || initialMethod == "Dinheiro")
           ? initialMethod
           : null;
       XFile? imageFile = initialPath != null ? XFile(initialPath) : null;
-      bool isLoading = false; // Controle da animação
-
-      final ImagePicker picker = ImagePicker();
+      bool isLoading = false;
 
       return StatefulBuilder(
         builder: (context, setState) {
-          bool _isPicking = false;
-
-          Future<void> pickImage() async {
-            if (_isPicking) return;
-            _isPicking = true;
-            try {
-              final XFile? selected = await picker.pickImage(
-                source: ImageSource.gallery,
-                imageQuality: 85,
-              );
-              if (selected != null) {
-                setState(() => imageFile = selected);
-              }
-            } finally {
-              _isPicking = false;
-            }
-          }
+          final ImagePicker picker = ImagePicker();
 
           return AlertDialog(
-            insetPadding: const EdgeInsets.symmetric(
-              horizontal: 15,
-              vertical: 20,
-            ),
+            insetPadding: const EdgeInsets.all(20), // Faz o modal ficar largo
+            clipBehavior: Clip
+                .antiAlias, // Garante que as cores não vazem o arredondamento
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(25),
+              borderRadius: BorderRadius.circular(24),
             ),
-            title: Column(
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      initialName != null
-                          ? Icons.edit_calendar
-                          : Icons.add_task,
-                      color: TableMapScreen.primaryDark,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 10),
-                    Text(
-                      initialName != null ? "Editar Reserva" : "Nova Reserva",
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 20,
+            titlePadding: EdgeInsets.zero,
+            title: Container(
+              padding: const EdgeInsets.all(24),
+              color: TableMapScreen.primaryDark,
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        initialName != null
+                            ? Icons.edit_calendar
+                            : Icons.add_task,
+                        color: Colors.white,
+                        size: 28,
                       ),
-                    ),
-                  ],
-                ),
-                const Divider(),
-              ],
+                      const SizedBox(width: 12),
+                      Text(
+                        initialName != null ? "Editar Reserva" : "Nova Reserva",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
             content: SizedBox(
               width: MediaQuery.of(context).size.width * 0.95,
               child: Form(
-                key: _formKey,
+                key: GlobalKey<FormState>(),
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // --- CARD DE VALORES ---
                       Container(
                         padding: const EdgeInsets.all(15),
                         decoration: BoxDecoration(
@@ -479,8 +436,6 @@ void _showReservationDialog(
                         ),
                       ),
                       const SizedBox(height: 20),
-
-                      // --- CAMPOS DE TEXTO ---
                       TextFormField(
                         controller: nameController,
                         decoration: _inputStyle(
@@ -492,22 +447,20 @@ void _showReservationDialog(
                             : null,
                       ),
                       const SizedBox(height: 15),
-
                       TextFormField(
-                        controller: phoneController,
+                        initialValue: phoneMask.getMaskedText(),
                         inputFormatters: [phoneMask],
                         keyboardType: TextInputType.phone,
                         decoration: _inputStyle(
                           "WhatsApp / Telefone",
                           Icons.phone_android,
                         ),
-                        validator: (v) => (v == null || v.length < 14)
-                            ? "Telefone inválido"
-                            : null,
+                        onChanged: (v) => phoneMask.formatEditUpdate(
+                          TextEditingValue.empty,
+                          TextEditingValue(text: v),
+                        ),
                       ),
                       const SizedBox(height: 15),
-
-                      // --- PAGAMENTO ---
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text(
@@ -516,12 +469,8 @@ void _showReservationDialog(
                         ),
                         value: isPaid,
                         activeColor: Colors.green,
-                        onChanged: (v) => setState(() {
-                          isPaid = v;
-                          // Removido o código que limpava a imagem/método
-                        }),
+                        onChanged: (v) => setState(() => isPaid = v),
                       ),
-
                       if (isPaid) ...[
                         DropdownButtonFormField<String>(
                           value: method,
@@ -535,15 +484,18 @@ void _showReservationDialog(
                                     DropdownMenuItem(value: e, child: Text(e)),
                               )
                               .toList(),
-                          validator: (v) =>
-                              v == null ? "Selecione o método" : null,
                           onChanged: (v) => setState(() => method = v),
                         ),
-
                         if (method == "Pix") ...[
                           const SizedBox(height: 15),
                           InkWell(
-                            onTap: pickImage,
+                            onTap: () async {
+                              final XFile? selected = await picker.pickImage(
+                                source: ImageSource.gallery,
+                              );
+                              if (selected != null)
+                                setState(() => imageFile = selected);
+                            },
                             child: Container(
                               height: 100,
                               width: double.infinity,
@@ -557,20 +509,17 @@ void _showReservationDialog(
                                 ),
                               ),
                               child: imageFile == null
-                                  ? Column(
+                                  ? const Column(
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
-                                      children: const [
+                                      children: [
                                         Icon(
                                           Icons.cloud_upload_outlined,
                                           color: Colors.blue,
                                         ),
                                         Text(
-                                          "Subir Comprovante Pix",
-                                          style: TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.blue,
-                                          ),
+                                          "Subir Comprovante",
+                                          style: TextStyle(color: Colors.blue),
                                         ),
                                       ],
                                     )
@@ -579,34 +528,10 @@ void _showReservationDialog(
                                       child: Image.file(
                                         File(imageFile!.path),
                                         fit: BoxFit.cover,
-                                        errorBuilder:
-                                            (context, error, stackTrace) =>
-                                                const Center(
-                                                  child: Icon(
-                                                    Icons.broken_image,
-                                                    color: Colors.red,
-                                                  ),
-                                                ),
                                       ),
                                     ),
                             ),
                           ),
-                          if (imageFile != null)
-                            TextButton.icon(
-                              onPressed: () => setState(() => imageFile = null),
-                              icon: const Icon(
-                                Icons.delete,
-                                color: Colors.red,
-                                size: 16,
-                              ),
-                              label: const Text(
-                                "Remover foto",
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
                         ],
                       ],
                     ],
@@ -615,7 +540,7 @@ void _showReservationDialog(
               ),
             ),
             actions: [
-              if (!isLoading) // Esconde cancelar durante o loading
+              if (!isLoading)
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const Text(
@@ -637,75 +562,49 @@ void _showReservationDialog(
                 onPressed: isLoading
                     ? null
                     : () async {
-                        if (_formKey.currentState!.validate()) {
-                          setState(() => isLoading = true); // Inicia animação
+                        setState(() => isLoading = true);
+                        await Future.delayed(
+                          const Duration(milliseconds: 1000),
+                        );
 
-                          await Future.delayed(
-                            const Duration(milliseconds: 1000),
+                        if (initialName != null) {
+                          await provider.updateReservation(
+                            oldUserName: initialName,
+                            newTableNumbers: selectedNumbers,
+                            name: nameController.text,
+                            phone: phoneMask.getMaskedText(),
+                            isPaid: isPaid,
+                            method: method,
+                            path: imageFile?.path,
                           );
-
-                          if (initialName != null) {
-                            await provider.updateReservation(
-                              oldUserName: initialName,
-                              newTableNumbers: selectedNumbers,
-                              name: nameController.text,
-                              phone: phoneMask.getMaskedText(),
-                              isPaid: isPaid,
-                              method: method,
-                              path: imageFile?.path,
-                            );
-                            Navigator.pop(context);
-                          } else {
-                            await provider.confirmReservation(
-                              tableNumbers: selectedNumbers,
-                              name: nameController.text,
-                              phone: phoneMask.getMaskedText(),
-                              isPaid: isPaid,
-                              method: method,
-                              path: imageFile?.path,
-                            );
-                          }
-
-                          if (context.mounted) {
-                            Navigator.pop(context); // Fecha o Dialog
-
-                            ScaffoldMessenger.of(context).clearSnackBars();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.check_circle,
-                                      color: Colors.white,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Text(
-                                      initialName != null
-                                          ? "Reserva atualizada com sucesso!"
-                                          : "Mesas reservadas com sucesso!",
-                                    ),
-                                  ],
-                                ),
-                                backgroundColor: const Color(0xFF2D3250),
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                duration: const Duration(seconds: 5),
-                              ),
-                            );
-                            provider.clearSelection();
-                          }
+                          Navigator.pop(context);
                         } else {
+                          await provider.confirmReservation(
+                            tableNumbers: selectedNumbers,
+                            name: nameController.text,
+                            phone: phoneMask.getMaskedText(),
+                            isPaid: isPaid,
+                            method: method,
+                            path: imageFile?.path,
+                          );
+                        }
+
+                        if (context.mounted) {
+                          Navigator.pop(
+                            context,
+                          ); // ESTE É O ÚNICO POP QUE DEVE EXISTIR
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
+                            SnackBar(
                               content: Text(
-                                "⚠️ Preencha todos os campos obrigatórios!",
+                                initialName != null
+                                    ? "Atualizado!"
+                                    : "Reservado!",
                               ),
-                              backgroundColor: Colors.redAccent,
+                              backgroundColor: TableMapScreen.primaryDark,
                               behavior: SnackBarBehavior.floating,
                             ),
                           );
+                          provider.clearSelection();
                         }
                       },
                 child: isLoading
@@ -719,10 +618,7 @@ void _showReservationDialog(
                       )
                     : const Text(
                         "CONFIRMAR",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(color: Colors.white),
                       ),
               ),
             ],
@@ -730,21 +626,6 @@ void _showReservationDialog(
         },
       );
     },
-  );
-}
-
-// --- ESTILOS AUXILIARES ---
-Widget _buildField(
-  TextEditingController controller,
-  String label,
-  IconData icon, {
-  MaskTextInputFormatter? mask,
-}) {
-  return TextField(
-    controller: controller,
-    keyboardType: mask != null ? TextInputType.phone : TextInputType.text,
-    inputFormatters: mask != null ? [mask] : [],
-    decoration: _inputStyle(label, icon),
   );
 }
 
@@ -761,24 +642,8 @@ InputDecoration _inputStyle(String label, IconData icon) {
   );
 }
 
-Widget _countBadge(String label, Color color) {
-  return Container(
-    margin: const EdgeInsets.only(right: 8, top: 4),
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-    decoration: BoxDecoration(
-      color: color.withOpacity(0.1),
-      borderRadius: BorderRadius.circular(6),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
-    ),
-  );
-}
-
 Widget _legendItemCompact(Color color, String label, int count) {
   return Row(
-    mainAxisSize: MainAxisSize.min,
     children: [
       Container(
         width: 10,
@@ -788,17 +653,13 @@ Widget _legendItemCompact(Color color, String label, int count) {
       const SizedBox(width: 6),
       Text(
         "$label: ",
-        style: const TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: Colors.grey,
-        ),
+        style: const TextStyle(fontSize: 11, color: Colors.grey),
       ),
       Text(
         "$count",
         style: TextStyle(
           fontSize: 11,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.bold,
           color: color,
         ),
       ),
