@@ -65,7 +65,6 @@ class TableProvider extends ChangeNotifier {
   }
 
   Future<void> addEvent(String name, int tableCount, double price) async {
-    await Future.delayed(const Duration(milliseconds: 600));
     final newEvent = EventModel(
       id: const Uuid().v4(),
       name: name,
