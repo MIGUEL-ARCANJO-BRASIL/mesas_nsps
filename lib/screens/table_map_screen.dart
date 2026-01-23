@@ -309,10 +309,13 @@ void _showReservationDialog(
   String? initialPath,
 }) {
   final nameController = TextEditingController(text: initialName);
+  // Adicionei um controller para o telefone para melhor controle do estado
+  final phoneController = TextEditingController(text: initialPhone);
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
   final phoneMask = MaskTextInputFormatter(
     mask: '(##) #####-####',
     filter: {"#": RegExp(r'[0-9]')},
-    initialText: initialPhone,
   );
 
   final double unitPrice = provider.globalPrice;
@@ -334,9 +337,8 @@ void _showReservationDialog(
           final ImagePicker picker = ImagePicker();
 
           return AlertDialog(
-            insetPadding: const EdgeInsets.all(20), // Faz o modal ficar largo
-            clipBehavior: Clip
-                .antiAlias, // Garante que as cores não vazem o arredondamento
+            insetPadding: const EdgeInsets.all(20),
+            clipBehavior: Clip.antiAlias,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(24),
             ),
@@ -344,26 +346,20 @@ void _showReservationDialog(
             title: Container(
               padding: const EdgeInsets.all(24),
               color: TableMapScreen.primaryDark,
-              child: Column(
+              child: Row(
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        initialName != null
-                            ? Icons.edit_calendar
-                            : Icons.add_task,
-                        color: Colors.white,
-                        size: 28,
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        initialName != null ? "Editar Reserva" : "Nova Reserva",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  Icon(
+                    initialName != null ? Icons.edit_calendar : Icons.add_task,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    initialName != null ? "Editar Reserva" : "Nova Reserva",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -371,11 +367,12 @@ void _showReservationDialog(
             content: SizedBox(
               width: MediaQuery.of(context).size.width * 0.95,
               child: Form(
-                key: GlobalKey<FormState>(),
+                key: _formKey,
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // Card de Resumo de Preço
                       Container(
                         padding: const EdgeInsets.all(15),
                         decoration: BoxDecoration(
@@ -436,31 +433,42 @@ void _showReservationDialog(
                         ),
                       ),
                       const SizedBox(height: 20),
+
+                      // Campo Nome
                       TextFormField(
                         controller: nameController,
                         decoration: _inputStyle(
                           "Nome do Cliente",
                           Icons.person_outline,
                         ),
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? "Preencha o nome"
-                            : null,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty)
+                            return "O nome é obrigatório";
+                          if (v.trim().length < 3) return "Nome muito curto";
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 15),
+
+                      // Campo Telefone
                       TextFormField(
-                        initialValue: phoneMask.getMaskedText(),
+                        controller: phoneController,
                         inputFormatters: [phoneMask],
                         keyboardType: TextInputType.phone,
                         decoration: _inputStyle(
                           "WhatsApp / Telefone",
                           Icons.phone_android,
                         ),
-                        onChanged: (v) => phoneMask.formatEditUpdate(
-                          TextEditingValue.empty,
-                          TextEditingValue(text: v),
-                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty)
+                            return "O telefone é obrigatório";
+                          if (v.length < 14) return "Telefone incompleto";
+                          return null;
+                        },
                       ),
                       const SizedBox(height: 15),
+
+                      // Switch de Pagamento
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text(
@@ -471,6 +479,7 @@ void _showReservationDialog(
                         activeColor: Colors.green,
                         onChanged: (v) => setState(() => isPaid = v),
                       ),
+
                       if (isPaid) ...[
                         DropdownButtonFormField<String>(
                           value: method,
@@ -562,49 +571,51 @@ void _showReservationDialog(
                 onPressed: isLoading
                     ? null
                     : () async {
-                        setState(() => isLoading = true);
-                        await Future.delayed(
-                          const Duration(milliseconds: 1000),
-                        );
+                        if (_formKey.currentState!.validate()) {
+                          setState(() => isLoading = true);
 
-                        if (initialName != null) {
-                          await provider.updateReservation(
-                            oldUserName: initialName,
-                            newTableNumbers: selectedNumbers,
-                            name: nameController.text,
-                            phone: phoneMask.getMaskedText(),
-                            isPaid: isPaid,
-                            method: method,
-                            path: imageFile?.path,
-                          );
-                          Navigator.pop(context);
-                        } else {
-                          await provider.confirmReservation(
-                            tableNumbers: selectedNumbers,
-                            name: nameController.text,
-                            phone: phoneMask.getMaskedText(),
-                            isPaid: isPaid,
-                            method: method,
-                            path: imageFile?.path,
-                          );
-                        }
+                          try {
+                            if (initialName != null) {
+                              await provider.updateReservation(
+                                oldUserName: initialName,
+                                newTableNumbers: selectedNumbers,
+                                name: nameController.text,
+                                phone: phoneController.text,
+                                isPaid: isPaid,
+                                method: method,
+                                path: imageFile?.path,
+                              );
+                            } else {
+                              await provider.confirmReservation(
+                                tableNumbers: selectedNumbers,
+                                name: nameController.text,
+                                phone: phoneController.text,
+                                isPaid: isPaid,
+                                method: method,
+                                path: imageFile?.path,
+                              );
+                            }
 
-                        if (context.mounted) {
-                          Navigator.pop(
-                            context,
-                          ); // ESTE É O ÚNICO POP QUE DEVE EXISTIR
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                initialName != null
-                                    ? "Atualizado!"
-                                    : "Reservado!",
-                              ),
-                              backgroundColor: TableMapScreen.primaryDark,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                          provider.clearSelection();
+                            if (context.mounted) {
+                              Navigator.pop(context); // Fecha o Dialog
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    initialName != null
+                                        ? "Atualizado!"
+                                        : "Reservado!",
+                                  ),
+                                  backgroundColor: TableMapScreen.primaryDark,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                              provider.clearSelection();
+                            }
+                          } catch (e) {
+                            setState(() => isLoading = false);
+                            // Opcional: mostrar erro se a gravação falhar
+                          }
                         }
                       },
                 child: isLoading
