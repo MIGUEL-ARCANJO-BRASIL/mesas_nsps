@@ -1,77 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
-import 'package:mesasnsps/screens/home_navigation_screen.dart';
-import 'package:mesasnsps/screens/welcome_screen.dart';
+import 'package:mesasnsps/screens/splash_screen.dart'; // Importe sua nova tela aqui
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
-  // Necessário para inicializar plugins antes do runApp
+  // Necessário para inicializar plugins como SharedPreferences antes do runApp
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Verifica se a sessão expirou
-  bool showWelcome = await checkSessionExpired();
 
   runApp(
     ChangeNotifierProvider(
       create: (context) => TableProvider(),
-      child: MyApp(
-        startScreen: showWelcome
-            ? const WelcomeScreen()
-            : const HomeNavigationScreen(),
-      ),
+      child: const MyApp(),
     ),
   );
 }
 
-// Função para checar o tempo
-Future<bool> checkSessionExpired() async {
-  final prefs = await SharedPreferences.getInstance();
-  final int? lastEntry = prefs.getInt('last_interaction');
-
-  // Se for a primeira vez, mostra a tela de boas-vindas
-  if (lastEntry == null) return true;
-
-  final lastDate = DateTime.fromMillisecondsSinceEpoch(lastEntry);
-  final difference = DateTime.now().difference(lastDate);
-
-  // --- DEFINE O TEMPO AQUI ---
-  // Exemplo: Se ficou mais de 2 horas (120 min) sem abrir, volta pro início
-  return difference.inMinutes > 240;
-}
-
 class MyApp extends StatefulWidget {
-  final Widget startScreen;
-  const MyApp({super.key, required this.startScreen});
+  const MyApp({super.key});
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
-// Usamos WidgetsBindingObserver para detectar quando o app fecha/minimiza
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    // Adiciona o observador para detectar quando o app minimiza ou fecha
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    // Remove o observador ao destruir o widget
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
-  // Sempre que o estado do app mudar (minimizar, fechar, voltar)
+  // Monitora as mudanças de estado do aplicativo
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
-      // Quando o usuário sai do app, a gente salva o "carimbo" de hora
+      // Salva o momento exato que o usuário saiu ou minimizou o app
       _saveTimestamp();
     }
   }
 
+  /// Salva o timestamp atual no SharedPreferences
   Future<void> _saveTimestamp() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(
@@ -85,8 +62,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Mesas NSPS',
-      theme: ThemeData(useMaterial3: true),
-      home: widget.startScreen,
+      theme: ThemeData(
+        useMaterial3: true,
+        // Define a fonte padrão ou cores globais se desejar
+        primarySwatch: Colors.blue,
+      ),
+      // A porta de entrada agora é SEMPRE a SplashScreen
+      // Ela será responsável por decidir se vai para Welcome ou Home após o loading
+      home: const SplashScreen(),
     );
   }
 }
