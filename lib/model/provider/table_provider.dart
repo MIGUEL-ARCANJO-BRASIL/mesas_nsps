@@ -1,74 +1,66 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/model/event.dart';
 import 'package:mesasnsps/model/table.dart';
-import 'package:uuid/uuid.dart'; // Recomendo adicionar 'uuid' no pubspec.yaml
+import 'package:uuid/uuid.dart';
 
 class TableProvider extends ChangeNotifier {
-  // Lista de todos os eventos cadastrados
+  // --- ESTADO ---
   List<EventModel> _events = [];
   List<EventModel> _archivedEvents = [];
-  List<EventModel> get events => _events;
-
-  // O evento que está aberto no momento
   EventModel? _selectedEvent;
-  EventModel? get selectedEvent => _selectedEvent;
-
-  // Set de seleção de mesas (permanece global para a tela do mapa)
   Set<int> selectedNumbers = {};
 
-  // Getters de conveniência para o evento selecionado
+  // --- GETTERS ---
+  List<EventModel> get allEvents => _events;
+  EventModel? get selectedEvent => _selectedEvent;
+
+  /// Eventos que não foram arquivados e ainda não passaram da data de hoje
+  List<EventModel> get activeEvents {
+    final today = DateTime.now();
+    final startOfToday = DateTime(today.year, today.month, today.day);
+
+    return _events.where((e) {
+      return !e.date.isBefore(startOfToday);
+    }).toList();
+  }
+
+  /// Eventos arquivados manualmente + eventos que já passaram da data
+  List<EventModel> get historyEvents {
+    final today = DateTime.now();
+    final startOfToday = DateTime(today.year, today.month, today.day);
+
+    final expiredEvents = _events
+        .where((e) => e.date.isBefore(startOfToday))
+        .toList();
+    return [..._archivedEvents, ...expiredEvents];
+  }
+
+  // Getters de conveniência
   double get globalPrice => _selectedEvent?.tablePrice ?? 0.0;
   List<TableModel> get tables => _selectedEvent?.tables ?? [];
 
   // --- GERENCIAMENTO DE EVENTOS ---
-  void setCurrentEvent(EventModel event) {
-    // Só notifica se o evento for realmente diferente
-    if (_selectedEvent?.id == event.id) return;
 
+  void setCurrentEvent(EventModel event) {
+    if (_selectedEvent?.id == event.id) return;
     _selectedEvent = event;
     selectedNumbers.clear();
 
-    // Garante que a notificação aconteça após o frame atual
     WidgetsBinding.instance.addPostFrameCallback((_) {
       notifyListeners();
     });
   }
 
-  void archiveEvent(String id) {
-    final index = _events.indexWhere((e) => e.id == id);
-    if (index != -1) {
-      _archivedEvents.add(_events[index]);
-      _events.removeAt(index);
-      if (_selectedEvent?.id == id) _selectedEvent = null;
-      notifyListeners();
-    }
-  }
-
-  // Desarquivar Evento
-  void unarchiveEvent(String id) {
-    final index = _archivedEvents.indexWhere((e) => e.id == id);
-    if (index != -1) {
-      _events.add(_archivedEvents[index]);
-      _archivedEvents.removeAt(index);
-      notifyListeners();
-    }
-  }
-
-  void deleteEvent(String id, {bool isArchived = false}) {
-    if (isArchived) {
-      _archivedEvents.removeWhere((e) => e.id == id);
-    } else {
-      _events.removeWhere((e) => e.id == id);
-    }
-    if (_selectedEvent?.id == id) _selectedEvent = null;
-    notifyListeners();
-  }
-
-  Future<void> addEvent(String name, int tableCount, double price) async {
+  Future<void> addEvent(
+    String name,
+    int tableCount,
+    double price,
+    DateTime eventDate,
+  ) async {
     final newEvent = EventModel(
       id: const Uuid().v4(),
       name: name,
-      date: DateTime.now(),
+      date: eventDate,
       tablePrice: price,
       tables: List.generate(
         tableCount,
@@ -79,19 +71,50 @@ class TableProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- CONFIGURAÇÃO DO EVENTO ATUAL ---
+  void archiveEvent(String id) {
+    final index = _events.indexWhere((e) => e.id == id);
+    if (index != -1) {
+      _archivedEvents.add(_events[index]);
+      _events.removeAt(index);
+
+      // Se o evento arquivado era o selecionado, limpa a seleção
+      if (_selectedEvent?.id == id) _selectedEvent = null;
+
+      notifyListeners();
+    }
+  }
+
+  void unarchiveEvent(String id) {
+    final index = _archivedEvents.indexWhere((e) => e.id == id);
+    if (index != -1) {
+      _events.add(_archivedEvents[index]);
+      _archivedEvents.removeAt(index);
+      notifyListeners();
+    }
+  }
+
+  void deleteEvent(String id, {bool fromArchive = false}) {
+    if (fromArchive) {
+      _archivedEvents.removeWhere((e) => e.id == id);
+    } else {
+      _events.removeWhere((e) => e.id == id);
+    }
+
+    if (_selectedEvent?.id == id) _selectedEvent = null;
+    notifyListeners();
+  }
 
   void updateEventConfig(int count, double price) {
     if (_selectedEvent == null) return;
 
     _selectedEvent!.tablePrice = price;
 
-    // Atualiza preço das existentes
+    // Atualiza preço das mesas existentes
     for (var table in _selectedEvent!.tables) {
       table.price = price;
     }
 
-    // Ajusta quantidade
+    // Ajusta quantidade de mesas
     if (count > _selectedEvent!.tables.length) {
       int startNumber = _selectedEvent!.tables.length + 1;
       for (int i = startNumber; i <= count; i++) {
@@ -104,19 +127,7 @@ class TableProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- FINANCEIRO (BASEADO NO EVENTO SELECIONADO) ---
-
-  double get totalArrecadado {
-    return tables.where((t) => t.status == TableStatusEnum.paid).length *
-        globalPrice;
-  }
-
-  double get totalPendente {
-    return tables.where((t) => t.status == TableStatusEnum.reserved).length *
-        globalPrice;
-  }
-
-  // --- RESERVAS (MANTÉM SUA LÓGICA ORIGINAL, MAS APLICA AO EVENTO ATIVO) ---
+  // --- LÓGICA DE RESERVAS ---
 
   void toggleTableSelection(int number) {
     if (selectedNumbers.contains(number)) {
@@ -140,7 +151,8 @@ class TableProvider extends ChangeNotifier {
     String? method,
     String? path,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    // Simulação de delay para UI
+    await Future.delayed(const Duration(milliseconds: 400));
 
     for (var num in tableNumbers) {
       var table = tables.firstWhere((t) => t.number == num);
@@ -162,34 +174,33 @@ class TableProvider extends ChangeNotifier {
     String? method,
     String? path,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 400));
 
-    // Limpa antigas
+    // Limpa reservas antigas deste usuário
     for (var table in tables) {
       if (table.userName == oldUserName) {
         table.userName = null;
         table.phoneNumber = null;
         table.paymentMethod = null;
-        table.status = TableStatusEnum.available;
         table.receiptPath = null;
+        table.status = TableStatusEnum.available;
       }
     }
 
-    // Define novas
+    // Define novas reservas
     for (var num in newTableNumbers) {
       var table = tables.firstWhere((t) => t.number == num);
       table.userName = name;
       table.phoneNumber = phone;
       table.paymentMethod = method;
-      table.status = isPaid ? TableStatusEnum.paid : TableStatusEnum.reserved;
       table.receiptPath = path;
+      table.status = isPaid ? TableStatusEnum.paid : TableStatusEnum.reserved;
     }
     clearSelection();
   }
-  // Re-adicionando o que sumiu:
 
   Future<void> clearReservation(String userName) async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    await Future.delayed(const Duration(milliseconds: 400));
     for (var table in tables) {
       if (table.userName == userName) {
         table.userName = null;
@@ -206,5 +217,17 @@ class TableProvider extends ChangeNotifier {
     selectedNumbers.clear();
     selectedNumbers.addAll(tableNumbers);
     notifyListeners();
+  }
+
+  // --- FINANCEIRO ---
+
+  double get totalArrecadado {
+    return tables.where((t) => t.status == TableStatusEnum.paid).length *
+        globalPrice;
+  }
+
+  double get totalPendente {
+    return tables.where((t) => t.status == TableStatusEnum.reserved).length *
+        globalPrice;
   }
 }

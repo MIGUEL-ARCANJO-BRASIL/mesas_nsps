@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
-import 'package:mesasnsps/screens/splash_screen.dart'; // Importe sua nova tela aqui
+import 'package:mesasnsps/screens/auxs/splash_screen.dart'; // Importe sua nova tela aqui
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() async {
   // Necessário para inicializar plugins como SharedPreferences antes do runApp
@@ -62,6 +63,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Mesas NSPS',
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('pt', 'BR'), // Português Brasil
+      ],
+      locale: const Locale('pt', 'BR'),
       theme: ThemeData(
         useMaterial3: true,
         // Define a fonte padrão ou cores globais se desejar

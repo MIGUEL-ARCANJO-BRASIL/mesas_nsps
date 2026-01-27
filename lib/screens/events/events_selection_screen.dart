@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/model/event.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
-import 'package:mesasnsps/screens/table_map_screen.dart';
+import 'package:mesasnsps/screens/main/table_map_screen.dart';
 import 'package:provider/provider.dart';
 
 class EventSelectionScreen extends StatefulWidget {
@@ -19,16 +19,11 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
   Widget build(BuildContext context) {
     final provider = Provider.of<TableProvider>(context);
 
-    List<EventModel> filteredEvents = provider.events
+    // 1. Pegamos a lista que o Provider já filtrou por data e status
+    // 2. Aplicamos apenas o filtro de busca de texto
+    List<EventModel> filteredEvents = provider.activeEvents
         .where((e) => e.name.toLowerCase().contains(_searchQuery.toLowerCase()))
         .toList();
-
-    filteredEvents.sort((a, b) {
-      if (provider.selectedEvent?.id == a.id) return -1;
-      if (provider.selectedEvent?.id == b.id) return 1;
-      return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-    });
-
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
@@ -42,9 +37,20 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.archive_outlined, color: Color(0xFF2D3250)),
-            onPressed: () {},
+          // Botão de Novo Evento agora na barra superior
+          TextButton.icon(
+            onPressed: () => _showAddEventDialog(context, provider),
+            icon: const Icon(Icons.add, color: Color(0xFFD4AF37)),
+            label: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: const Text(
+                "NOVO",
+                style: TextStyle(
+                  color: Color(0xFF2D3250),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -52,7 +58,7 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
         children: [
           _buildSearchArea(),
           Expanded(
-            child: provider.events.isEmpty
+            child: provider.activeEvents.isEmpty
                 ? _buildEmptyState()
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
@@ -71,15 +77,6 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                   ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: primaryDark,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text(
-          "NOVO EVENTO",
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        onPressed: () => _showAddEventDialog(context, provider),
       ),
     );
   }
@@ -154,6 +151,25 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                           initialDate: DateTime.now(),
                           firstDate: DateTime.now(),
                           lastDate: DateTime(2100),
+                          locale: const Locale(
+                            "pt",
+                            "BR",
+                          ), // Garante o idioma no diálogo
+                          // Você também pode customizar as cores para combinar com o seu primaryDark:
+                          builder: (context, child) {
+                            return Theme(
+                              data: Theme.of(context).copyWith(
+                                colorScheme: ColorScheme.light(
+                                  primary:
+                                      primaryDark, // Cor do cabeçalho e seleção
+                                  onPrimary:
+                                      Colors.white, // Cor do texto no cabeçalho
+                                  onSurface: primaryDark, // Cor dos dias
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
                         );
 
                         if (pickedDate != null) {
@@ -251,7 +267,7 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                             nameController.text,
                             int.tryParse(countController.text) ?? 100,
                             double.tryParse(priceController.text) ?? 20.0,
-                            // date: selectedDate, // Enviar a data para o provider se necessário
+                            selectedDate!, // Enviar a data para o provider se necessário
                           );
 
                           if (context.mounted) {
@@ -709,15 +725,34 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                       backgroundColor: Colors.blue[700],
                       foregroundColor: Colors.white,
                     ),
+                    // Dentro do onPressed do ElevatedButton no seu _showArchiveDialog:
                     onPressed: isArchiving
                         ? null
                         : () async {
                             setModalState(() => isArchiving = true);
+
+                            // Simula um delay para o loading
                             await Future.delayed(
                               const Duration(milliseconds: 600),
                             );
-                            // provider.toggleArchiveEvent(event.id); // Implementar no provider
-                            if (context.mounted) Navigator.pop(context);
+
+                            // EXECUTA A AÇÃO NO PROVIDER
+                            provider.archiveEvent(event.id);
+
+                            if (context.mounted) {
+                              Navigator.pop(context); // Fecha o diálogo
+
+                              // Feedback visual para o usuário
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    "'${event.name}' movido para o histórico",
+                                  ),
+                                  backgroundColor: Colors.blue[700],
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
                           },
                     child: isArchiving
                         ? const SizedBox(

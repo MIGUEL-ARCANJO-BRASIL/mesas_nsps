@@ -69,10 +69,6 @@ class _ConfigsScreenState extends State<ConfigsScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Color(0xFF2D3250)),
-            onPressed: () => Navigator.pop(context),
-          ),
         ),
         body: Center(
           child: Padding(

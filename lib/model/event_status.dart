@@ -1,0 +1,1 @@
+enum EventStatus { FINALIZADO, CANCELADO }

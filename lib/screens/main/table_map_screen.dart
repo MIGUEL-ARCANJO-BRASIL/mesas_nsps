@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
 import 'package:mesasnsps/model/table.dart';
-import 'package:mesasnsps/screens/config_screen.dart';
+import 'package:mesasnsps/screens/auxs/config_screen.dart';
 import 'package:provider/provider.dart';
 
 class TableMapScreen extends StatelessWidget {
@@ -133,155 +133,139 @@ class TableMapScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          InteractiveViewer(
-            boundaryMargin: const EdgeInsets.all(100),
-            minScale: 0.1,
-            maxScale: 2.0,
-            child: GridView.builder(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 250),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 9,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-              ),
-              itemCount: provider.tables.length + 18,
-              itemBuilder: (context, index) {
-                List<int> areaCentral = [3, 4, 5, 12, 13, 14];
-                if (areaCentral.contains(index)) {
-                  return Container(
-                    decoration: BoxDecoration(
-                      color: primaryDark,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: index == 4
-                        ? const Icon(
-                            Icons.mic_external_on,
-                            color: Colors.white,
-                            size: 18,
-                          )
-                        : null,
+      body: InteractiveViewer(
+        boundaryMargin: const EdgeInsets.all(100),
+        minScale: 0.1,
+        maxScale: 2.0,
+        child: GridView.builder(
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 250),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 9,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+          ),
+          itemCount: provider.tables.length + 18,
+          itemBuilder: (context, index) {
+            List<int> areaCentral = [3, 4, 5, 12, 13, 14];
+            if (areaCentral.contains(index)) {
+              return Container(
+                decoration: BoxDecoration(
+                  color: primaryDark,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: index == 4
+                    ? const Icon(
+                        Icons.mic_external_on,
+                        color: Colors.white,
+                        size: 18,
+                      )
+                    : null,
+              );
+            }
+
+            int tablesToSubtract = 0;
+            if (index > 5) tablesToSubtract += 3;
+            if (index > 14) tablesToSubtract += 3;
+            int tableIndex = index - tablesToSubtract;
+
+            if (tableIndex >= provider.tables.length || tableIndex < 0)
+              return const SizedBox.shrink();
+
+            final table = provider.tables[tableIndex];
+            final isSelected = provider.selectedNumbers.contains(table.number);
+            bool isHisTable =
+                editingName != null && table.userName == editingName;
+
+            return GestureDetector(
+              onTap: () {
+                if (table.status == TableStatusEnum.available ||
+                    isSelected ||
+                    isHisTable) {
+                  provider.toggleTableSelection(table.number);
+                }
+              },
+              onLongPress: () {
+                // Lógica de "segurar" (clique longo)
+                if (table.status != TableStatusEnum.available) {
+                  _showReservationDialog(
+                    context,
+                    [table.number],
+                    provider,
+                    initialName: table.userName,
+                    initialPhone: table.phoneNumber,
+                    initialPaid: table.status == TableStatusEnum.paid,
+                    initialMethod: table.paymentMethod,
+                    initialPath: table.receiptPath,
                   );
                 }
-
-                int tablesToSubtract = 0;
-                if (index > 5) tablesToSubtract += 3;
-                if (index > 14) tablesToSubtract += 3;
-                int tableIndex = index - tablesToSubtract;
-
-                if (tableIndex >= provider.tables.length || tableIndex < 0)
-                  return const SizedBox.shrink();
-
-                final table = provider.tables[tableIndex];
-                final isSelected = provider.selectedNumbers.contains(
-                  table.number,
-                );
-                bool isHisTable =
-                    editingName != null && table.userName == editingName;
-
-                return GestureDetector(
-                  onTap: () {
-                    if (table.status == TableStatusEnum.available ||
-                        isSelected ||
-                        isHisTable) {
-                      provider.toggleTableSelection(table.number);
-                    }
-                  },
-                  onLongPress: () {
-                    // Lógica de "segurar" (clique longo)
-                    if (table.status != TableStatusEnum.available) {
-                      _showReservationDialog(
-                        context,
-                        [table.number],
-                        provider,
-                        initialName: table.userName,
-                        initialPhone: table.phoneNumber,
-                        initialPaid: table.status == TableStatusEnum.paid,
-                        initialMethod: table.paymentMethod,
-                        initialPath: table.receiptPath,
-                      );
-                    }
-                  },
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? colorSelecionada
-                          : _getBgColor(table.status),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: isSelected
-                            ? colorSelecionadaBorder
-                            : _getTextColor(table.status).withOpacity(0.2),
-                        width: isSelected ? 2 : 1,
-                      ),
-                    ),
-                    child: Center(
-                      child: Text(
-                        "${table.number}",
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: isSelected
-                              ? colorSelecionadaBorder
-                              : _getTextColor(table.status),
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
               },
-            ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 80,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (provider.selectedNumbers.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 40),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: primaryDark,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 8,
-                        ),
-                        onPressed: () => _showReservationDialog(
-                          context,
-                          provider.selectedNumbers.toList(),
-                          provider,
-                          initialName: editingName,
-                          initialPhone: editingPhone,
-                          initialPaid: wasPaid,
-                          initialMethod: editingMethod,
-                          initialPath: editingPath,
-                        ),
-                        icon: const Icon(Icons.check_circle_outline, size: 25),
-                        label: const Text(
-                          "CONFIRMAR SELEÇÃO",
-                          style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? colorSelecionada
+                      : _getBgColor(table.status),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isSelected
+                        ? colorSelecionadaBorder
+                        : _getTextColor(table.status).withOpacity(0.2),
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    "${table.number}",
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isSelected
+                          ? colorSelecionadaBorder
+                          : _getTextColor(table.status),
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-              ],
-            ),
-          ),
-        ],
+                ),
+              ),
+            );
+          },
+        ),
       ),
+
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: provider.selectedNumbers.isNotEmpty
+          ? Padding(
+              // Adiciona um recuo no fundo para subir o botão acima da HomeNavigationScreen
+              padding: const EdgeInsets.only(bottom: 150),
+              child: FloatingActionButton.extended(
+                key: const ValueKey('confirm_fab'),
+                backgroundColor: primaryDark,
+                elevation: 8, // Aumentamos a sombra para dar profundidade
+                icon: const Icon(
+                  Icons.check_circle_outline,
+                  color: Colors.white,
+                ),
+                label: Text(
+                  "CONFIRMAR ${provider.selectedNumbers.length == 1 ? '1 MESA' : '${provider.selectedNumbers.length} MESAS'}",
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onPressed: () {
+                  _showReservationDialog(
+                    context,
+                    provider.selectedNumbers.toList(),
+                    provider,
+                    initialName: editingName,
+                    initialPhone: editingPhone,
+                    initialMethod: editingMethod,
+                    initialPath: editingPath,
+                    initialPaid: wasPaid,
+                  );
+                },
+              ),
+            )
+          : null,
     );
   }
 
@@ -309,7 +293,6 @@ void _showReservationDialog(
   String? initialPath,
 }) {
   final nameController = TextEditingController(text: initialName);
-  // Adicionei um controller para o telefone para melhor controle do estado
   final phoneController = TextEditingController(text: initialPhone);
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
 

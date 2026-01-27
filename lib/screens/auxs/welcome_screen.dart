@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mesasnsps/screens/home_navigation_screen.dart';
-import 'package:mesasnsps/screens/table_map_screen.dart';
+import 'package:mesasnsps/screens/main/home_navigation_screen.dart';
+import 'package:mesasnsps/screens/main/table_map_screen.dart';
 
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
