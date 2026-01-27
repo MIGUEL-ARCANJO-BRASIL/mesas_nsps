@@ -3,7 +3,7 @@ import 'package:mesasnsps/model/event.dart';
 import 'package:mesasnsps/model/table.dart';
 import 'package:uuid/uuid.dart';
 
-class TableProvider extends ChangeNotifier {
+class TableProvider with ChangeNotifier {
   // --- ESTADO ---
   List<EventModel> _events = [];
   List<EventModel> _archivedEvents = [];
@@ -13,6 +13,11 @@ class TableProvider extends ChangeNotifier {
   // --- GETTERS ---
   List<EventModel> get allEvents => _events;
   EventModel? get selectedEvent => _selectedEvent;
+
+  void selectEvent(EventModel event) {
+    _selectedEvent = event;
+    notifyListeners(); // Notifica as telas (como o Dashboard) para se atualizarem
+  }
 
   /// Eventos que não foram arquivados e ainda não passaram da data de hoje
   List<EventModel> get activeEvents {
@@ -77,8 +82,11 @@ class TableProvider extends ChangeNotifier {
       _archivedEvents.add(_events[index]);
       _events.removeAt(index);
 
-      // Se o evento arquivado era o selecionado, limpa a seleção
-      if (_selectedEvent?.id == id) _selectedEvent = null;
+      // Se o evento arquivado era o selecionado, limpa TUDO
+      if (_selectedEvent?.id == id) {
+        _selectedEvent = null;
+        selectedNumbers.clear(); // Limpa as mesas que estavam marcadas
+      }
 
       notifyListeners();
     }

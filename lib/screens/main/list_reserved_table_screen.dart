@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
 import 'package:mesasnsps/model/table.dart';
+import 'package:mesasnsps/screens/main/financial_dashboard_screen.dart';
 import 'package:mesasnsps/screens/main/reservation_detail_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:collection/collection.dart';
@@ -14,9 +15,11 @@ class ListReservedTableScreen extends StatefulWidget {
 }
 
 class _ListReservedTableScreenState extends State<ListReservedTableScreen> {
+  // --- CONTROLES DE PESQUISA E FILTRO ---
   String _searchQuery = "";
-  String _activeFilter = "Todos";
+  String _activeFilter = "Todos"; // Todos, Pendentes, Pagos
 
+  // --- PALETA TEMA ---
   static const Color primaryDark = Color(0xFF2D3250);
   static const Color accentBlue = Color(0xFF7077A1);
   static const Color bgCanvas = Color(0xFFF6F6F9);
@@ -25,26 +28,12 @@ class _ListReservedTableScreenState extends State<ListReservedTableScreen> {
   Widget build(BuildContext context) {
     final tableProvider = Provider.of<TableProvider>(context);
 
-    // --- CÁLCULOS FINANCEIROS ---
-    // Valor de cada mesa do evento atual
-    final double pricePerTable = tableProvider.globalPrice;
-
-    // Todas as mesas ocupadas (Pagas ou Reservadas)
-    final occupiedTables = tableProvider.tables
-        .where((t) => t.status != TableStatusEnum.available)
+    // 1. Filtragem Inicial (Ocupadas)
+    var filteredList = tableProvider.tables
+        .where((table) => table.status != TableStatusEnum.available)
         .toList();
 
-    // Valor Total JÁ PAGO
-    final double totalRecebido =
-        occupiedTables.where((t) => t.status == TableStatusEnum.paid).length *
-        pricePerTable;
-
-    // Valor Total POTENCIAL (Se todas as reservas forem pagas)
-    final double totalPotencial = occupiedTables.length * pricePerTable;
-
-    // --- LÓGICA DE FILTRAGEM PARA A LISTA ---
-    var filteredList = occupiedTables;
-
+    // 2. Filtro por Status (Botões/Chips)
     if (_activeFilter == "Pendentes") {
       filteredList = filteredList
           .where((t) => t.status == TableStatusEnum.reserved)
@@ -55,6 +44,7 @@ class _ListReservedTableScreenState extends State<ListReservedTableScreen> {
           .toList();
     }
 
+    // 3. Filtro por Nome (Barra de Pesquisa)
     if (_searchQuery.isNotEmpty) {
       filteredList = filteredList
           .where(
@@ -80,13 +70,43 @@ class _ListReservedTableScreenState extends State<ListReservedTableScreen> {
           "Gestão de Reservas",
           style: TextStyle(fontWeight: FontWeight.w900, color: primaryDark),
         ),
+        actions: [
+          // --- BOTÃO DO DASHBOARD ---
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              decoration: BoxDecoration(
+                color: primaryDark.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TextButton.icon(
+                icon: const Icon(Icons.analytics_rounded, color: primaryDark),
+                label: const Text(
+                  "Dashboard",
+                  style: TextStyle(
+                    color: primaryDark,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FinancialDashboardScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
-          _buildFinancialSummary(totalRecebido, totalPotencial),
+          // BARRA DE PESQUISA E FILTROS
           _buildSearchAndFilterArea(),
 
-          // NOVO: RESUMO FINANCEIRO
           Expanded(
             child: filteredList.isEmpty
                 ? _buildEmptyState()
@@ -97,71 +117,12 @@ class _ListReservedTableScreenState extends State<ListReservedTableScreen> {
                       String userName = groupedReservations.keys.elementAt(
                         index,
                       );
+
                       List<TableModel> userTables =
                           groupedReservations[userName]!;
                       return _buildGroupedReservationCard(userName, userTables);
                     },
                   ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // WIDGET DO RESUMO FINANCEIRO
-  Widget _buildFinancialSummary(double recebido, double potencial) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: primaryDark,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: primaryDark.withOpacity(0.2),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          _buildSummaryItem(
-            "TOTAL PAGO",
-            "R\$ ${recebido.toStringAsFixed(0)}",
-            Colors.greenAccent,
-          ),
-          Container(width: 1, height: 40, color: Colors.white24),
-          _buildSummaryItem(
-            "POTENCIAL TOTAL",
-            "R\$ ${potencial.toStringAsFixed(0)}",
-            Colors.white,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryItem(String label, String value, Color valueColor) {
-    return Expanded(
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
           ),
         ],
       ),
@@ -311,6 +272,7 @@ class _ListReservedTableScreenState extends State<ListReservedTableScreen> {
               ),
               const Divider(height: 32, color: bgCanvas),
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
                     Icons.grid_view_rounded,
@@ -318,11 +280,15 @@ class _ListReservedTableScreenState extends State<ListReservedTableScreen> {
                     color: accentBlue.withOpacity(0.5),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    "MESAS: ${tables.map((t) => t.number).join(', ')}",
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      color: primaryDark,
+                  Expanded(
+                    child: Text(
+                      "MESAS: ${tables.map((t) => t.number).join(', ')}",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: primaryDark,
+                      ),
+                      // Opcional: define como o texto se comporta se for muito grande
+                      softWrap: true,
                     ),
                   ),
                 ],

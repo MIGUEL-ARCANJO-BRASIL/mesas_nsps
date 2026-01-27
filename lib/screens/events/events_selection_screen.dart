@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/model/event.dart';
+import 'package:mesasnsps/model/provider/preferences_provider.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
+import 'package:mesasnsps/screens/events/components/welcome_component.dart';
 import 'package:mesasnsps/screens/main/table_map_screen.dart';
 import 'package:provider/provider.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 class EventSelectionScreen extends StatefulWidget {
   const EventSelectionScreen({super.key});
@@ -14,6 +17,54 @@ class EventSelectionScreen extends StatefulWidget {
 class _EventSelectionScreenState extends State<EventSelectionScreen> {
   String _searchQuery = "";
   final Color primaryDark = const Color(0xFF2D3250);
+  final GlobalKey _keyAddEvent = GlobalKey();
+
+  final GlobalKey _keyFirstEventCard = GlobalKey();
+  final GlobalKey _keyArchive = GlobalKey();
+  final GlobalKey _keyDelete = GlobalKey();
+
+  List<TargetFocus> targets = [];
+
+  void _initTutorial() {
+    targets.clear();
+    targets.add(
+      TargetFocus(
+        identify: "AddEvent",
+        keyTarget: _keyAddEvent,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: WelcomeComponent.buildTutorialStep(
+              "Comece criando seu primeiro evento aqui!",
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = Provider.of<PreferencesProvider>(context, listen: false);
+
+      if (prefs.isFirstTime) {
+        await WelcomeComponent.show(context);
+        final currentPrefs = Provider.of<PreferencesProvider>(
+          context,
+          listen: false,
+        );
+        if (currentPrefs.isTutorialEnabled) {
+          _initTutorial();
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) {
+            _showTutorial();
+          }
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,16 +90,20 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
         actions: [
           // Botão de Novo Evento agora na barra superior
           TextButton.icon(
+            key: _keyAddEvent,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             onPressed: () => _showAddEventDialog(context, provider),
-            icon: const Icon(Icons.add, color: Color(0xFFD4AF37)),
-            label: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: const Text(
-                "NOVO",
-                style: TextStyle(
-                  color: Color(0xFF2D3250),
-                  fontWeight: FontWeight.bold,
-                ),
+            icon: const Icon(Icons.add, color: Color(0xFFD4AF37), size: 20),
+            label: const Text(
+              "NOVO",
+              style: TextStyle(
+                color: TableMapScreen.primaryDark,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
               ),
             ),
           ),
@@ -57,6 +112,7 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
       body: Column(
         children: [
           _buildSearchArea(),
+          _buildSelectionWarning(provider),
           Expanded(
             child: provider.activeEvents.isEmpty
                 ? _buildEmptyState()
@@ -67,11 +123,17 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                       final event = filteredEvents[index];
                       final bool isSelected =
                           provider.selectedEvent?.id == event.id;
+
+                      // Passamos as chaves apenas para o primeiro item da lista
                       return _buildEventCard(
                         context,
                         provider,
                         event,
                         isSelected,
+                        cardKey: index == 0 ? _keyFirstEventCard : null,
+                        menuKey: index == 0
+                            ? _keyArchive
+                            : null, // Passamos a chave que você já tem para o menuKey
                       );
                     },
                   ),
@@ -81,20 +143,60 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
     );
   }
 
+  void _showTutorial() {
+    if (targets.isEmpty) return; // Segurança contra lista vazia
+
+    final tutorial = TutorialCoachMark(
+      targets: targets,
+      colorShadow: const Color(0xFF2D3250),
+      opacityShadow: 0.8,
+      textSkip: "PULAR",
+      paddingFocus: 10,
+      onFinish: () => context.read<PreferencesProvider>().completeTutorial(
+        'event_selection',
+      ),
+      onSkip: () {
+        context.read<PreferencesProvider>().completeTutorial('event_selection');
+        return true;
+      },
+    );
+
+    // Executa o show logo após o build estar totalmente estável
+    Future.delayed(Duration.zero, () {
+      tutorial.show(context: context);
+    });
+  }
+
   void _showAddEventDialog(BuildContext context, TableProvider provider) {
+    final GlobalKey keyFieldName = GlobalKey();
+    final GlobalKey keyFieldDate = GlobalKey();
+    final GlobalKey keyBtnSave = GlobalKey();
+
     final nameController = TextEditingController();
     final countController = TextEditingController(text: "100");
     final priceController = TextEditingController(text: "20.00");
-    final dateController = TextEditingController(); // Controller para a data
+    final dateController = TextEditingController();
     DateTime? selectedDate;
     bool isLoading = false;
     String? nameError;
     String? dateError;
+
+    // Controlamos se o tutorial já foi exibido NESTE modal para não repetir
+    bool tutorialExibido = false;
+
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
+          // DISPARO ÚNICO DO TUTORIAL
+          if (!tutorialExibido) {
+            tutorialExibido = true;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _showModalTutorial(keyFieldName, keyFieldDate, keyBtnSave);
+            });
+          }
+
           return AlertDialog(
             insetPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -130,20 +232,21 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const SizedBox(height: 8),
+                    // Campo Nome com a Chave
                     _buildField(
                       nameController,
                       "Nome do Evento",
                       Icons.drive_file_rename_outline,
                       enabled: !isLoading,
-                      errorText:
-                          nameError, // Adicione este parâmetro se o seu _buildField suportar
+                      errorText: nameError,
+                      key: keyFieldName, // CHAVE AQUI
                     ),
                     const SizedBox(height: 20),
-                    // CAMPO DE DATA
+                    // Campo Data com a Chave
                     TextField(
+                      key: keyFieldDate, // CHAVE AQUI
                       controller: dateController,
-                      readOnly:
-                          true, // Mantém apenas leitura para forçar o uso do calendário
+                      readOnly: true,
                       enabled: !isLoading,
                       onTap: () async {
                         DateTime? pickedDate = await showDatePicker(
@@ -151,34 +254,25 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                           initialDate: DateTime.now(),
                           firstDate: DateTime.now(),
                           lastDate: DateTime(2100),
-                          locale: const Locale(
-                            "pt",
-                            "BR",
-                          ), // Garante o idioma no diálogo
-                          // Você também pode customizar as cores para combinar com o seu primaryDark:
-                          builder: (context, child) {
-                            return Theme(
-                              data: Theme.of(context).copyWith(
-                                colorScheme: ColorScheme.light(
-                                  primary:
-                                      primaryDark, // Cor do cabeçalho e seleção
-                                  onPrimary:
-                                      Colors.white, // Cor do texto no cabeçalho
-                                  onSurface: primaryDark, // Cor dos dias
-                                ),
+                          locale: const Locale("pt", "BR"),
+                          builder: (context, child) => Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: ColorScheme.light(
+                                primary: primaryDark,
+                                onPrimary: Colors.white,
+                                onSurface: primaryDark,
                               ),
-                              child: child!,
-                            );
-                          },
+                            ),
+                            child: child!,
+                          ),
                         );
 
                         if (pickedDate != null) {
-                          // IMPORTANTE: Use o setModalState para atualizar o diálogo
                           setModalState(() {
                             selectedDate = pickedDate;
                             dateController.text =
                                 "${pickedDate.day.toString().padLeft(2, '0')}/${pickedDate.month.toString().padLeft(2, '0')}/${pickedDate.year}";
-                            dateError = null; // Limpa o erro ao selecionar
+                            dateError = null;
                           });
                         }
                       },
@@ -189,10 +283,6 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        filled: isLoading,
-                        fillColor: isLoading
-                            ? Colors.grey[100]
-                            : Colors.transparent,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -223,16 +313,14 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                 ),
               ),
             ),
-            actionsPadding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 16,
-            ),
+            actionsPadding: const EdgeInsets.all(16),
             actions: [
               TextButton(
                 onPressed: isLoading ? null : () => Navigator.pop(context),
                 child: const Text("CANCELAR"),
               ),
               ElevatedButton(
+                key: keyBtnSave, // CHAVE AQUI
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryDark,
                   minimumSize: const Size(140, 48),
@@ -240,49 +328,45 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                 onPressed: isLoading
                     ? null
                     : () async {
-                        setModalState(() {
-                          nameError = null;
-                          dateError = null;
-                        });
-                        bool isValid = true;
-
-                        if (nameController.text.trim().isEmpty) {
-                          setModalState(
-                            () => nameError = "O nome é obrigatório",
-                          );
-                          isValid = false;
-                        }
-                        if (dateController.text.isEmpty) {
-                          setModalState(() => dateError = "Selecione uma data");
-                          isValid = false;
-                        }
-                        if (!isValid) return;
-
                         setModalState(() => isLoading = true);
 
-                        await Future.delayed(const Duration(milliseconds: 800));
+                        // Validação básica
+                        if (nameController.text.trim().isEmpty ||
+                            selectedDate == null) {
+                          setModalState(() {
+                            nameError = nameController.text.isEmpty
+                                ? "Obrigatório"
+                                : null;
+                            dateError = selectedDate == null
+                                ? "Obrigatório"
+                                : null;
+                            isLoading = false;
+                          });
+                          return;
+                        }
 
                         try {
-                          provider.addEvent(
+                          await provider.addEvent(
                             nameController.text,
                             int.tryParse(countController.text) ?? 100,
                             double.tryParse(priceController.text) ?? 20.0,
-                            selectedDate!, // Enviar a data para o provider se necessário
+                            selectedDate!,
                           );
 
                           if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Evento criado com sucesso!"),
-                                backgroundColor: Color(0xFF2D3250),
-                                behavior: SnackBarBehavior.floating,
-                              ),
+                            Navigator.pop(context); // Fecha o modal
+
+                            // APÓS FECHAR, DISPARA O TUTORIAL DA LISTA
+                            // Adicionamos um delay para o evento aparecer na lista antes do tutorial
+                            Future.delayed(
+                              const Duration(milliseconds: 600),
+                              () {
+                                _showListTutorial();
+                              },
                             );
-                            Navigator.pop(context);
                           }
                         } catch (e) {
-                          if (context.mounted)
-                            setModalState(() => isLoading = false);
+                          setModalState(() => isLoading = false);
                         }
                       },
                 child: isLoading
@@ -307,6 +391,128 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
         },
       ),
     );
+  }
+
+  void _showListTutorial() {
+    // Só mostramos se houver eventos na lista
+    if (targets.isEmpty) return;
+
+    List<TargetFocus> listTargets = [];
+
+    listTargets.add(
+      TargetFocus(
+        identify: "FirstCard",
+        keyTarget: _keyFirstEventCard,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: WelcomeComponent.buildTutorialStep(
+              "Excelente! Seu evento apareceu aqui. Toque no card para gerenciar os mapas das mesas.",
+            ),
+          ),
+        ],
+      ),
+    );
+
+    listTargets.add(
+      TargetFocus(
+        identify: "ArchiveBtn",
+        keyTarget: _keyArchive,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: WelcomeComponent.buildTutorialStep(
+              "Neste ícone você arquiva o evento. Ele sai da lista principal mas não é apagado.",
+            ),
+          ),
+        ],
+      ),
+    );
+
+    listTargets.add(
+      TargetFocus(
+        identify: "DeleteBtn",
+        keyTarget: _keyDelete,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top, // Mostrar em cima para não cobrir o card
+            child: WelcomeComponent.buildTutorialStep(
+              "Atenção: Aqui você exclui o evento para sempre. Use com cuidado!",
+            ),
+          ),
+        ],
+      ),
+    );
+
+    TutorialCoachMark(
+      targets: listTargets,
+      colorShadow: primaryDark,
+      opacityShadow: 0.8,
+      textSkip: "FINALIZAR",
+      onFinish: () =>
+          context.read<PreferencesProvider>().completeTutorial('full_flow'),
+    ).show(context: context);
+  }
+
+  void _showModalTutorial(
+    GlobalKey nameKey,
+    GlobalKey dateKey,
+    GlobalKey saveKey,
+  ) {
+    List<TargetFocus> modalTargets = [];
+
+    modalTargets.add(
+      TargetFocus(
+        identify: "TargetName",
+        keyTarget: nameKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: WelcomeComponent.buildTutorialStep(
+              "Dê um nome ao seu evento (ex: 1° noite do arraial).",
+            ),
+          ),
+        ],
+      ),
+    );
+
+    modalTargets.add(
+      TargetFocus(
+        identify: "TargetDate",
+        keyTarget: dateKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: WelcomeComponent.buildTutorialStep(
+              "Selecione a data em que o evento ocorrerá.",
+            ),
+          ),
+        ],
+      ),
+    );
+
+    modalTargets.add(
+      TargetFocus(
+        identify: "TargetSave",
+        keyTarget: saveKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            child: WelcomeComponent.buildTutorialStep(
+              "Tudo pronto? Clique aqui para criar seu evento!",
+            ),
+          ),
+        ],
+      ),
+    );
+
+    TutorialCoachMark(
+      targets: modalTargets,
+      colorShadow: const Color(0xFF2D3250),
+      opacityShadow: 0.8,
+      textSkip: "ENTENDI",
+      onFinish: () => print("Tutorial do modal finalizado"),
+    ).show(context: context);
   }
 
   void _confirmEventSelection(
@@ -340,7 +546,7 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                 ),
                 const SizedBox(height: 24),
                 const Text(
-                  "Trocar Evento?",
+                  "Selecionar Evento?",
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 12),
@@ -403,13 +609,13 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
     BuildContext context,
     TableProvider provider,
     EventModel event,
-    bool isSelected,
-  ) {
+    bool isSelected, {
+    GlobalKey? cardKey, // Adicionado
+    GlobalKey? menuKey, // Adicionado (para o tutorial focar no menu de ações)
+  }) {
     // Formata a data para dd/MM/yy
-    // Garante que a data seja uma String e esteja no formato correto
     String formattedDate = event.date?.toString() ?? "Sem data";
 
-    // Se a data vier no formato ISO (2026-01-23), invertemos para o padrão BR
     if (formattedDate.contains('-')) {
       try {
         DateTime dt = DateTime.parse(formattedDate);
@@ -421,6 +627,7 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
     }
 
     return AnimatedContainer(
+      key: cardKey, // ATRIBUIÇÃO DA CHAVE DO CARD
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.only(bottom: 16, left: 4, right: 4),
       decoration: BoxDecoration(
@@ -506,7 +713,13 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                                 ],
                               ),
                             ),
-                            _buildPopupMenu(context, provider, event),
+                            // Passamos a chave para o botão de menu
+                            _buildPopupMenu(
+                              context,
+                              provider,
+                              event,
+                              menuKey: menuKey,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 20),
@@ -530,7 +743,7 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                             _buildInfoItem(
                               Icons.payments_outlined,
                               "VALOR",
-                              "R\$${event.tablePrice.toStringAsFixed(0)}",
+                              "R\$${event.tablePrice}",
                               isHighlight: true,
                             ),
                           ],
@@ -591,19 +804,36 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
   Widget _buildPopupMenu(
     BuildContext context,
     TableProvider provider,
-    EventModel event,
-  ) {
+    EventModel event, {
+    GlobalKey? menuKey, // Adicionado para o tutorial
+  }) {
     return PopupMenuButton<String>(
+      key: menuKey, // VINCULA A CHAVE AQUI
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       icon: const Icon(Icons.more_horiz_rounded, color: Colors.grey),
       onSelected: (val) => val == 'archive'
           ? _showArchiveDialog(context, provider, event)
           : _showDeleteDialog(context, provider, event),
       itemBuilder: (context) => [
-        const PopupMenuItem(value: 'archive', child: Text("Arquivar")),
+        const PopupMenuItem(
+          value: 'archive',
+          child: Row(
+            children: [
+              Icon(Icons.archive_outlined, size: 20, color: Colors.black54),
+              SizedBox(width: 8),
+              Text("Arquivar"),
+            ],
+          ),
+        ),
         const PopupMenuItem(
           value: 'delete',
-          child: Text("Excluir", style: TextStyle(color: Colors.red)),
+          child: Row(
+            children: [
+              Icon(Icons.delete_outline, size: 20, color: Colors.red),
+              SizedBox(width: 8),
+              Text("Excluir", style: TextStyle(color: Colors.red)),
+            ],
+          ),
         ),
       ],
     );
@@ -801,8 +1031,10 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
     bool isNumber = false,
     bool enabled = true,
     String? errorText, // Adicione isso
+    GlobalKey? key,
   }) {
     return TextField(
+      key: key,
       controller: controller,
       enabled: enabled,
       keyboardType: isNumber ? TextInputType.number : TextInputType.text,
@@ -824,6 +1056,49 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
           const Text(
             "Nenhum evento encontrado",
             style: TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectionWarning(TableProvider provider) {
+    // Só exibe se houver eventos na lista, mas nenhum estiver selecionado
+    if (provider.activeEvents.isEmpty || provider.selectedEvent != null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFD4AF37).withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFD4AF37).withOpacity(0.5)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.touch_app_outlined, color: Color(0xFFB8860B)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Nenhum evento selecionado",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: primaryDark,
+                    fontSize: 14,
+                  ),
+                ),
+                const Text(
+                  "Toque em um card abaixo para começar a gerenciar as mesas.",
+                  style: TextStyle(color: Colors.black54, fontSize: 12),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -82,13 +82,6 @@ class TableMapScreen extends StatelessWidget {
                 ),
               ),
             ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: primaryDark),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ConfigsScreen()),
-            ),
-          ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(40),
@@ -415,7 +408,51 @@ void _showReservationDialog(
                           ],
                         ),
                       ),
+                      // ... dentro do Column, logo após o Container do resumo de preço:
+                      const SizedBox(height: 15),
+
+                      // NOVO: Listagem das mesas selecionadas
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: selectedNumbers.map((number) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: TableMapScreen.primaryDark,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.chair_alt_rounded,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    "Mesa $number",
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+
                       const SizedBox(height: 20),
+                      // ... segue o TextFormField de Nome
 
                       // Campo Nome
                       TextFormField(

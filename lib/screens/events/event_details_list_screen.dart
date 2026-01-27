@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:collection/collection.dart';
 import 'package:mesasnsps/model/event.dart';
+import 'package:mesasnsps/model/provider/table_provider.dart';
 import 'package:mesasnsps/model/table.dart';
+import 'package:mesasnsps/screens/main/financial_dashboard_screen.dart';
+import 'package:provider/provider.dart';
 
 class EventDetailsListScreen extends StatelessWidget {
   final EventModel event;
@@ -33,6 +36,7 @@ class EventDetailsListScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: bgCanvas,
       appBar: AppBar(
+        surfaceTintColor: Colors.white,
         backgroundColor: Colors.white,
         elevation: 0,
         title: Column(
@@ -56,9 +60,39 @@ class EventDetailsListScreen extends StatelessWidget {
           ],
         ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: primaryDark),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: primaryDark,
+            size: 20,
+          ),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          // BOTÃO PARA VER O DASHBOARD
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: TextButton.icon(
+              label: const Text(
+                "Dashboard",
+                style: TextStyle(
+                  color: primaryDark,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                context.read<TableProvider>().selectEvent(event);
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const FinancialDashboardScreen(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.analytics_rounded, color: primaryDark),
+            ),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -231,29 +265,72 @@ class EventDetailsListScreen extends StatelessWidget {
                       const Divider(height: 32, color: bgCanvas),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment
+                            .start, // Alinha ao topo caso as mesas quebrem linha
                         children: [
-                          Row(
-                            children: [
-                              Icon(
-                                Icons.grid_view_rounded,
-                                size: 18,
-                                color: accentBlue.withOpacity(0.5),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                "MESAS: ${tables.map((t) => t.number).join(', ')}",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  color: primaryDark,
+                          // O Expanded aqui é VITAL: ele diz ao Column/Wrap interno para não passar da largura do Card
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.grid_view_rounded,
+                                      size: 16,
+                                      color: accentBlue.withOpacity(0.5),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    const Text(
+                                      "MESAS:",
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: accentBlue,
+                                        letterSpacing: 1.1,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
+                                const SizedBox(height: 8),
+                                // O Wrap agora sabe exatamente onde deve quebrar a linha
+                                Wrap(
+                                  spacing: 6.0,
+                                  runSpacing: 6.0,
+                                  children: tables.map((t) {
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: primaryDark.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        t.number.toString(),
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          color: primaryDark,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ),
                           ),
+                          const SizedBox(
+                            width: 12,
+                          ), // Espaço de segurança entre as mesas e o contador
+                          // Contador de mesas fixo à direita
                           Text(
                             "${tables.length} mesa(s)",
                             style: TextStyle(
                               color: accentBlue.withOpacity(0.6),
                               fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ],

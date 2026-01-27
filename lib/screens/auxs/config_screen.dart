@@ -122,7 +122,7 @@ class _ConfigsScreenState extends State<ConfigsScreen> {
       backgroundColor: const Color(0xFFF6F6F9),
       appBar: AppBar(
         title: const Text(
-          "Ajustar Evento",
+          "Configurações  ",
           style: TextStyle(fontWeight: FontWeight.w900, color: primaryDark),
         ),
         centerTitle: false,
@@ -283,7 +283,7 @@ class _ConfigsScreenState extends State<ConfigsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 120),
           ],
         ),
       ),

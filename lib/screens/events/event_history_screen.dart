@@ -27,10 +27,6 @@ class EventHistoryScreen extends StatelessWidget {
         centerTitle: false,
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: primaryDark),
-          onPressed: () => Navigator.pop(context),
-        ),
       ),
       body: history.isEmpty
           ? _buildEmptyState()
@@ -183,7 +179,7 @@ class EventHistoryScreen extends StatelessWidget {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
         icon: const Icon(
           Icons.settings_backup_restore_rounded,
-          color: Colors.blue,
+          color: primaryDark,
           size: 40,
         ),
         title: const Text("Restaurar Evento"),
