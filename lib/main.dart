@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/model/provider/preferences_provider.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
-import 'package:mesasnsps/screens/auxs/splash_screen.dart'; // Importe sua nova tela aqui
+import 'package:mesasnsps/screens/components/splash_screen.dart'; // Importe sua nova tela aqui
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(
     MultiProvider(
       providers: [

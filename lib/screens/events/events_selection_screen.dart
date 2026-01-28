@@ -1,8 +1,10 @@
+import 'package:currency_text_input_formatter/currency_text_input_formatter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mesasnsps/model/event.dart';
 import 'package:mesasnsps/model/provider/preferences_provider.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
-import 'package:mesasnsps/screens/events/components/welcome_component.dart';
+import 'package:mesasnsps/screens/components/welcome_component.dart';
 import 'package:mesasnsps/screens/main/table_map_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
@@ -170,30 +172,48 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
   void _showAddEventDialog(BuildContext context, TableProvider provider) {
     final GlobalKey keyFieldName = GlobalKey();
     final GlobalKey keyFieldDate = GlobalKey();
+    final GlobalKey keyFieldQtd = GlobalKey();
+    final GlobalKey keyFieldPrice = GlobalKey();
+
     final GlobalKey keyBtnSave = GlobalKey();
 
     final nameController = TextEditingController();
-    final countController = TextEditingController(text: "100");
-    final priceController = TextEditingController(text: "20.00");
+    final countController = TextEditingController();
+    final priceController = TextEditingController();
     final dateController = TextEditingController();
     DateTime? selectedDate;
     bool isLoading = false;
     String? nameError;
     String? dateError;
 
-    // Controlamos se o tutorial já foi exibido NESTE modal para não repetir
-    bool tutorialExibido = false;
+    final currencyFormatter = CurrencyTextInputFormatter.currency(
+      locale: 'pt_BR',
+      symbol: 'R\$',
+      decimalDigits: 2,
+    );
 
+    bool tutorialExibido = false;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
           // DISPARO ÚNICO DO TUTORIAL
-          if (!tutorialExibido) {
+          final prefProvider = Provider.of<PreferencesProvider>(
+            context,
+            listen: false,
+          );
+
+          if (!tutorialExibido && prefProvider.isTutorialEnabled) {
             tutorialExibido = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _showModalTutorial(keyFieldName, keyFieldDate, keyBtnSave);
+              _showModalTutorial(
+                keyFieldName,
+                keyFieldDate,
+                keyFieldQtd,
+                keyFieldPrice,
+                keyBtnSave,
+              );
             });
           }
 
@@ -295,9 +315,12 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                             Icons.grid_view,
                             isNumber: true,
                             enabled: !isLoading,
+                            key: keyFieldQtd,
+                            hintText: "100",
                           ),
                         ),
                         const SizedBox(width: 12),
+
                         Expanded(
                           child: _buildField(
                             priceController,
@@ -305,6 +328,9 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                             Icons.payments,
                             isNumber: true,
                             enabled: !isLoading,
+                            key: keyFieldPrice,
+                            hintText: "20.00",
+                            inputFormatters: [currencyFormatter],
                           ),
                         ),
                       ],
@@ -346,10 +372,13 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                         }
 
                         try {
+                          double valorFinal = currencyFormatter
+                              .getUnformattedValue()
+                              .toDouble();
                           await provider.addEvent(
                             nameController.text,
-                            int.tryParse(countController.text) ?? 100,
-                            double.tryParse(priceController.text) ?? 20.0,
+                            int.tryParse(countController.text)!,
+                            valorFinal,
                             selectedDate!,
                           );
 
@@ -457,6 +486,8 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
   void _showModalTutorial(
     GlobalKey nameKey,
     GlobalKey dateKey,
+    GlobalKey qtdKey,
+    GlobalKey priceKey,
     GlobalKey saveKey,
   ) {
     List<TargetFocus> modalTargets = [];
@@ -493,6 +524,34 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
 
     modalTargets.add(
       TargetFocus(
+        identify: "TargetQtd",
+        keyTarget: qtdKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            child: WelcomeComponent.buildTutorialStep(
+              "Escolha a quantidade de mesas desse evento!",
+            ),
+          ),
+        ],
+      ),
+    );
+    modalTargets.add(
+      TargetFocus(
+        identify: "TargetPrice",
+        keyTarget: priceKey,
+        contents: [
+          TargetContent(
+            align: ContentAlign.top,
+            child: WelcomeComponent.buildTutorialStep(
+              "Escolha o preço unitário de cada mesa nesse evento.",
+            ),
+          ),
+        ],
+      ),
+    );
+    modalTargets.add(
+      TargetFocus(
         identify: "TargetSave",
         keyTarget: saveKey,
         contents: [
@@ -511,7 +570,17 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
       colorShadow: const Color(0xFF2D3250),
       opacityShadow: 0.8,
       textSkip: "ENTENDI",
-      onFinish: () => print("Tutorial do modal finalizado"),
+      // DISPARA QUANDO CHEGA AO FINAL DE TODOS OS PASSOS
+      onFinish: () {
+        context.read<PreferencesProvider>().disableTutorial();
+        print("Tutorial do modal finalizado");
+      },
+      // DISPARA QUANDO CLICA EM "ENTENDI" (SKIP)
+      onSkip: () {
+        context.read<PreferencesProvider>().disableTutorial();
+        print("Usuário pulou o tutorial");
+        return true; // Retorne true para fechar o tutorial
+      },
     ).show(context: context);
   }
 
@@ -581,6 +650,16 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                                   const Duration(milliseconds: 600),
                                 );
                                 provider.setCurrentEvent(event);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      "Evento '${event.name}' selecionado!",
+                                    ),
+                                    duration: const Duration(seconds: 2),
+
+                                    backgroundColor: primaryDark,
+                                  ),
+                                );
                                 if (context.mounted) Navigator.pop(context);
                               },
                         child: isSelecting
@@ -1030,17 +1109,24 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
     IconData icon, {
     bool isNumber = false,
     bool enabled = true,
-    String? errorText, // Adicione isso
+    String? errorText,
     GlobalKey? key,
+    String? hintText,
+    List<TextInputFormatter>? inputFormatters, // Adicionado aqui
   }) {
     return TextField(
       key: key,
       controller: controller,
       enabled: enabled,
-      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      // Se for número, usamos a configuração de teclado específica
+      keyboardType: isNumber
+          ? const TextInputType.numberWithOptions(decimal: true)
+          : TextInputType.text,
+      inputFormatters: inputFormatters, // Aplicamos os formatadores aqui
       decoration: InputDecoration(
+        hintText: hintText,
         labelText: label,
-        errorText: errorText, // E isso
+        errorText: errorText,
         prefixIcon: Icon(icon, size: 20),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       ),

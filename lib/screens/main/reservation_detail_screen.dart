@@ -1,11 +1,17 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
 import 'package:mesasnsps/model/table.dart';
 import 'package:mesasnsps/screens/main/table_map_screen.dart';
+import 'package:pdf/pdf.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:intl/intl.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:http/http.dart' as http;
 
 class ReservationDetailScreen extends StatelessWidget {
   final String userName;
@@ -40,9 +46,26 @@ class ReservationDetailScreen extends StatelessWidget {
         elevation: 0,
         leading: BackButton(color: primaryDark),
         title: const Text(
-          "Detalhes da Reserva",
+          "Detalhes",
           style: TextStyle(color: primaryDark, fontWeight: FontWeight.w900),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, color: primaryDark),
+            onPressed: () {
+              final provider = Provider.of<TableProvider>(
+                context,
+                listen: false,
+              );
+              provider.prepareForEdit(tables.map((t) => t.number).toList());
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => const TableMapScreen()),
+                (route) => route.isFirst,
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -97,11 +120,13 @@ class ReservationDetailScreen extends StatelessWidget {
                     // Adicionamos a ação do WhatsApp aqui
                     trailing: firstTable.phoneNumber != null
                         ? IconButton(
-                            icon: const Icon(
-                              Icons
-                                  .chat_bubble_outline_rounded, // Ícone nativo que funciona como const
-                              color: Color(0xFF25D366),
-                              size: 28,
+                            icon: Image.asset(
+                              'assets/images/whatsapp.png',
+                              width:
+                                  20, // Mantendo o tamanho proporcional ao seu antigo size: 28
+                              height: 20,
+                              // Caso queira garantir que a cor não mude, não use o color aqui.
+                              // Imagens .png já vêm com suas cores originais.
                             ),
                             onPressed: () => _launchWhatsApp(
                               firstTable.phoneNumber!,
@@ -129,148 +154,279 @@ class ReservationDetailScreen extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   if (isPaid && isPix && firstTable.receiptPath != null) ...[
-                    const SizedBox(height: 24),
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        "COMPROVANTE PIX",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    GestureDetector(
+                    _buildImageTile(
+                      label: "COMPROVANTE ANEXADO",
+                      imagePath: firstTable.receiptPath!,
+                      icon: Icons.receipt_long_rounded,
                       onTap: () => _showFullScreenImage(
                         context,
                         firstTable.receiptPath!,
                       ),
-                      child: Hero(
-                        tag: 'receipt_image',
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(15),
-                          child: Image.file(
-                            File(firstTable.receiptPath!),
-                            width: double.infinity,
-                            height: 250,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Container(
-                                  height: 100,
-                                  color: Colors.grey[200],
-                                  child: const Icon(Icons.broken_image),
-                                ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-
-          // --- BARRA DE AÇÕES INFERIOR ---
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 20,
-                  offset: const Offset(0, -5),
-                ),
-              ],
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(30),
-              ),
-            ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  // BOTÃO EDITAR
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          final provider = Provider.of<TableProvider>(
-                            context,
-                            listen: false,
-                          );
-                          provider.prepareForEdit(
-                            tables.map((t) => t.number).toList(),
-                          );
-                          Navigator.pushAndRemoveUntil(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const TableMapScreen(),
-                            ),
-                            (route) => route.isFirst,
-                          );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                "Modo de Edição Ativo: Altere as mesas e salve.",
+                      trailing: isPaid
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.share_rounded,
+                                color: primaryDark,
+                                size: 22,
                               ),
-                              backgroundColor: Color(0xFF2D3250),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: bgCanvas,
-                          foregroundColor: primaryDark,
-                          elevation: 0,
-                          minimumSize: const Size(double.infinity, 55),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        icon: const Icon(Icons.edit_document),
-                        label: const Text(
-                          "EDITAR",
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                      ),
+                              onPressed: () => _generateAndShareReceipt(
+                                name: userName,
+                                tables: tables,
+                              ),
+                            )
+                          : null,
                     ),
-                  ),
+                    const SizedBox(height: 24),
+                  ],
 
-                  // --- BOTÃO LIBERAR (AGORA FUNCIONAL) ---
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.all(8.0),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          showLiberateDialog(context, userName);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFEBEE),
-                          foregroundColor: Colors.redAccent,
-                          elevation: 0,
-                          minimumSize: const Size(double.infinity, 55),
-                          side: const BorderSide(
-                            color: Colors.redAccent,
-                            width: 1,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
+                  const SizedBox(height: 32),
+                  TextButton.icon(
+                    onPressed: () => showLiberateDialog(context, userName),
+                    icon: const Icon(
+                      Icons.no_meeting_room_rounded,
+                      color: Colors.redAccent,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      "LIBERAR ESTAS MESAS",
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 20,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        side: const BorderSide(
+                          color: Colors.redAccent,
+                          width: 0.5,
                         ),
-                        icon: const Icon(Icons.no_meeting_room_rounded),
-                        label: const Text(
-                          "LIBERAR MESAS",
-                          style: TextStyle(fontWeight: FontWeight.w900),
-                        ),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                     ),
                   ),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // --- MÉTODO PRINCIPAL DE GERAÇÃO DE RECIBO ---
+  Future<void> _generateAndShareReceipt({
+    required String name,
+    required List<TableModel> tables,
+  }) async {
+    final pdf = pw.Document();
+    final dateStr = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final tablesStr = tables.map((t) => t.number).join(', ');
+    final firstTable = tables.first;
+
+    // Identifica se é Pix ou Dinheiro com base nos dados da mesa
+    final bool isPix = firstTable.paymentMethod == "Pix";
+    final totalValue = tables.length * firstTable.price;
+
+    // Cores do seu App
+    const primaryColor = PdfColor.fromInt(0xFF2D3250);
+    const accentColor = PdfColor.fromInt(0xFF7077A1);
+    const successColor = PdfColor.fromInt(0xFF2E7D32);
+
+    // Lógica para carregar a imagem do comprovante se for arquivo local
+    pw.MemoryImage? proofImage;
+    if (isPix && firstTable.receiptPath != null) {
+      try {
+        final file = File(firstTable.receiptPath!);
+        if (await file.exists()) {
+          final bytes = await file.readAsBytes();
+          proofImage = pw.MemoryImage(bytes);
+        }
+      } catch (e) {
+        debugPrint("Erro ao carregar imagem local para o PDF: $e");
+      }
+    }
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a6,
+        margin: const pw.EdgeInsets.all(10),
+        build: (pw.Context context) {
+          return [
+            pw.Container(
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: accentColor, width: 1),
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+              ),
+              padding: const pw.EdgeInsets.all(15),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  // --- HEADER ---
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(
+                            "RECIBO",
+                            style: pw.TextStyle(
+                              fontSize: 20,
+                              fontWeight: pw.FontWeight.bold,
+                              color: primaryColor,
+                            ),
+                          ),
+                          pw.Text(
+                            isPix
+                                ? "Pagamento via PIX"
+                                : "Pagamento em Espécie",
+                            style: const pw.TextStyle(
+                              fontSize: 9,
+                              color: accentColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                      _buildPdfStatusBadge(successColor),
+                    ],
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Divider(thickness: 0.5, color: accentColor),
+                  pw.SizedBox(height: 10),
+
+                  // --- DADOS DO CLIENTE ---
+                  _buildPdfRow("Cliente", name.toUpperCase(), primaryColor),
+                  _buildPdfRow("Mesas", tablesStr, primaryColor),
+                  _buildPdfRow("Data", dateStr, primaryColor),
+
+                  pw.SizedBox(height: 15),
+
+                  // --- SEÇÃO DO COMPROVANTE (SÓ APARECE SE FOR PIX) ---
+                  if (isPix && proofImage != null) ...[
+                    pw.Center(
+                      child: pw.Text(
+                        "COMPROVANTE ANEXO",
+                        style: pw.TextStyle(
+                          fontSize: 8,
+                          color: accentColor,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    pw.SizedBox(height: 5),
+                    pw.Container(
+                      alignment: pw.Alignment.center,
+                      height: 150, // Um pouco maior para melhor visualização
+                      width: double.infinity,
+                      child: pw.Image(proofImage, fit: pw.BoxFit.contain),
+                    ),
+                    pw.SizedBox(height: 10),
+                  ],
+
+                  // --- TOTAL ---
+                  pw.Container(
+                    padding: const pw.EdgeInsets.all(10),
+                    decoration: const pw.BoxDecoration(
+                      color: PdfColor.fromInt(0xFFF6F6F9),
+                      borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
+                    ),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text(
+                          "TOTAL",
+                          style: pw.TextStyle(
+                            fontSize: 12,
+                            fontWeight: pw.FontWeight.bold,
+                            color: accentColor,
+                          ),
+                        ),
+                        pw.Text(
+                          "R\$ ${totalValue.toStringAsFixed(2)}",
+                          style: pw.TextStyle(
+                            fontSize: 16,
+                            fontWeight: pw.FontWeight.bold,
+                            color: primaryColor,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  pw.SizedBox(height: 10),
+                  pw.Center(
+                    child: pw.Text(
+                      "Sistema de Gestão de Mesas",
+                      style: const pw.TextStyle(
+                        fontSize: 7,
+                        color: PdfColors.grey,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ];
+        },
+      ),
+    );
+
+    final bytes = await pdf.save();
+
+    // Compartilhamento
+    await Share.shareXFiles([
+      XFile.fromData(
+        bytes,
+        name: 'Recibo_${name.replaceAll(' ', '_')}.pdf',
+        mimeType: 'application/pdf',
+      ),
+    ], text: 'Olá $name, aqui está seu recibo confirmado!');
+  }
+
+  // --- MÉTODOS AUXILIARES (DENTRO DA MESMA CLASSE) ---
+
+  pw.Widget _buildPdfRow(String label, String value, PdfColor valueColor) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 4),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(
+            label,
+            style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+          ),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: 11,
+              fontWeight: pw.FontWeight.bold,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfStatusBadge(PdfColor color) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: pw.BoxDecoration(
+        color: color,
+        borderRadius: pw.BorderRadius.circular(4),
+      ),
+      child: pw.Text(
+        "PAGO",
+        style: pw.TextStyle(
+          color: PdfColors.white,
+          fontSize: 8,
+          fontWeight: pw.FontWeight.bold,
+        ),
       ),
     );
   }
@@ -507,6 +663,74 @@ class ReservationDetailScreen extends StatelessWidget {
             ),
           ),
           if (trailing != null) trailing, // Mostra o ícone do Zap se existir
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageTile({
+    required String label,
+    required String imagePath,
+    required IconData icon,
+    required VoidCallback onTap,
+    Widget? trailing,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.black.withOpacity(0.02)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: bgCanvas,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: accentBlue, size: 22),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: accentBlue.withOpacity(0.7),
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
+          ),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: onTap,
+            child: Hero(
+              tag: 'receipt_image',
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(15),
+                child: Image.file(
+                  File(imagePath),
+                  width: double.infinity,
+                  height: 200, // Altura levemente menor para caber no card
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => Container(
+                    height: 100,
+                    color: Colors.grey[100],
+                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

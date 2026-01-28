@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mesasnsps/screens/auxs/config_screen.dart';
+import 'package:mesasnsps/screens/main/config_screen.dart';
 import 'package:mesasnsps/screens/events/event_history_screen.dart';
 import 'package:mesasnsps/screens/events/events_selection_screen.dart';
 import 'package:mesasnsps/screens/main/list_reserved_table_screen.dart';

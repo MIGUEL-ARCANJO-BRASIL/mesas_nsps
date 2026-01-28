@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/screens/main/home_navigation_screen.dart';
-import 'package:mesasnsps/screens/auxs/welcome_screen.dart';
+import 'package:mesasnsps/screens/components/welcome_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {

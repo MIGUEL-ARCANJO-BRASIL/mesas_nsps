@@ -117,7 +117,7 @@ class FinancialDashboardScreen extends StatelessWidget {
                   ),
                   const Divider(height: 24, color: bgCanvas),
                   _buildDataRow(
-                    "Ocupação Total",
+                    "Total Potencial",
                     precoPotencialAtual,
                     primaryDark,
                     Icons.pie_chart_outline_rounded,
@@ -140,7 +140,7 @@ class FinancialDashboardScreen extends StatelessWidget {
               height: 56,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  FinancialService.generateFinancialReport(
+                  _showExportOptions(
                     context,
                     event,
                     precoRecebido,
@@ -153,7 +153,7 @@ class FinancialDashboardScreen extends StatelessWidget {
                   color: Colors.white,
                 ),
                 label: const Text(
-                  "EXPORTAR RELATÓRIO PDF",
+                  "EXPORTAR RELATÓRIO",
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
@@ -410,6 +410,81 @@ class FinancialDashboardScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  void _showExportOptions(
+    BuildContext context,
+    dynamic event,
+    double pago,
+    double pendente,
+    double total,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                "Exportar Relatório",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF0F1A44),
+                ),
+              ),
+              const SizedBox(height: 24),
+              ListTile(
+                leading: const Icon(
+                  Icons.print_rounded,
+                  color: Color(0xFF0F1A44),
+                ),
+                title: const Text("Visualizar e Imprimir"),
+                subtitle: const Text("Abrir visualizador padrão"),
+                onTap: () {
+                  Navigator.pop(context);
+                  FinancialService.printReport(event, pago, pendente, total);
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(
+                  Icons.file_download_rounded,
+                  color: Colors.green,
+                ),
+                title: const Text("Baixar PDF"),
+                subtitle: const Text("Salvar e compartilhar arquivo"),
+                onTap: () {
+                  Navigator.pop(context);
+                  FinancialService.downloadReport(
+                    context,
+                    event,
+                    pago,
+                    pendente,
+                    total,
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
     );
   }
 }

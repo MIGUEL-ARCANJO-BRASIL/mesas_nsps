@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
 import 'package:mesasnsps/model/table.dart';
-import 'package:mesasnsps/screens/auxs/config_screen.dart';
+import 'package:mesasnsps/screens/main/config_screen.dart';
 import 'package:provider/provider.dart';
 
 class TableMapScreen extends StatelessWidget {
@@ -230,6 +230,7 @@ class TableMapScreen extends StatelessWidget {
               // Adiciona um recuo no fundo para subir o botão acima da HomeNavigationScreen
               padding: const EdgeInsets.only(bottom: 150),
               child: FloatingActionButton.extended(
+                heroTag: "btn_unico_reserva",
                 key: const ValueKey('confirm_fab'),
                 backgroundColor: primaryDark,
                 elevation: 8, // Aumentamos a sombra para dar profundidade
@@ -605,6 +606,7 @@ void _showReservationDialog(
                                 method: method,
                                 path: imageFile?.path,
                               );
+                              Navigator.pop(context); // Fecha o Dialog
                             } else {
                               await provider.confirmReservation(
                                 tableNumbers: selectedNumbers,
