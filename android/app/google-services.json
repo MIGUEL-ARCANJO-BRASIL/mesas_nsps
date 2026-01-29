@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "231228833513",
+    "project_id": "mesas-nsps-app",
+    "storage_bucket": "mesas-nsps-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:231228833513:android:ee7755182ae93a8d193a78",
+        "android_client_info": {
+          "package_name": "com.example.mesasnsps"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAHW07nD55KufohzWRq4CbJ6YNeeZekmN0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

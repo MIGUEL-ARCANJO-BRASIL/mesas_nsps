@@ -49,6 +49,8 @@ dependencies:
   currency_text_input_formatter: ^2.3.0
   path_provider: ^2.1.5
   share_plus: ^12.0.1
+  firebase_core: ^4.4.0
+  cloud_firestore: ^6.1.2
 
 dev_dependencies:
   flutter_test:

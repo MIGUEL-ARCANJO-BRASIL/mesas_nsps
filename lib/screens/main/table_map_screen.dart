@@ -6,6 +6,7 @@ import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
 import 'package:mesasnsps/model/table.dart';
 import 'package:mesasnsps/screens/main/config_screen.dart';
+import 'package:mesasnsps/screens/main/reservation_detail_screen.dart';
 import 'package:provider/provider.dart';
 
 class TableMapScreen extends StatelessWidget {
@@ -606,6 +607,7 @@ void _showReservationDialog(
                                 method: method,
                                 path: imageFile?.path,
                               );
+
                               Navigator.pop(context); // Fecha o Dialog
                             } else {
                               await provider.confirmReservation(

@@ -8,7 +8,27 @@ class EventModel {
   int totalTables;
   List<TableModel> tables;
   bool isArchived;
-
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'date': date.toIso8601String(),
+    'tablePrice': tablePrice,
+    'tables': tables.map((t) => t.toMap()).toList(),
+  };
+  factory EventModel.fromMap(Map<String, dynamic> map) {
+    return EventModel(
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      date: DateTime.parse(map['date']),
+      tablePrice: (map['tablePrice'] ?? 0.0).toDouble(),
+      // Mapeia a lista de Dynamic para uma lista de TableModel
+      tables:
+          (map['tables'] as List<dynamic>?)
+              ?.map((t) => TableModel.fromMap(t as Map<String, dynamic>))
+              .toList() ??
+          [],
+    );
+  }
   EventModel({
     required this.id,
     required this.name,

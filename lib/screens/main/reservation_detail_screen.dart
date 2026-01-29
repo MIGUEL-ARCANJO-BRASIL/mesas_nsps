@@ -29,9 +29,25 @@ class ReservationDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final firstTable = tables.first;
-    final bool isPaid = tables.any((t) => t.status == TableStatusEnum.paid);
+    final provider = Provider.of<TableProvider>(context);
 
+    // 2. Filtre as mesas atualizadas pelo userName que veio no construtor
+    // Isso garante que se o telefone ou status mudar, este 'build' rodará de novo.
+    final currentTables = provider.tables
+        .where((t) => t.userName == userName)
+        .toList();
+
+    // 3. Caso a reserva tenha sido apagada ou o nome mudado, evite erro de lista vazia
+    if (currentTables.isEmpty) {
+      return const Scaffold(
+        body: Center(child: Text("Reserva não encontrada")),
+      );
+    }
+
+    final firstTable = currentTables.first;
+    final bool isPaid = currentTables.any(
+      (t) => t.status == TableStatusEnum.paid,
+    );
     final bool isPix = firstTable.paymentMethod == "Pix";
     final String? imagePath = firstTable.receiptPath;
 
@@ -58,10 +74,9 @@ class ReservationDetailScreen extends StatelessWidget {
                 listen: false,
               );
               provider.prepareForEdit(tables.map((t) => t.number).toList());
-              Navigator.pushAndRemoveUntil(
+              Navigator.push(
                 context,
                 MaterialPageRoute(builder: (context) => const TableMapScreen()),
-                (route) => route.isFirst,
               );
             },
           ),
@@ -169,12 +184,59 @@ class ReservationDetailScreen extends StatelessWidget {
                                 color: primaryDark,
                                 size: 22,
                               ),
-                              onPressed: () => _generateAndShareReceipt(
-                                name: userName,
-                                tables: tables,
-                              ),
+                              onPressed: () {
+                                final eventProvider =
+                                    Provider.of<TableProvider>(
+                                      context,
+                                      listen: false,
+                                    );
+                                final event = eventProvider.selectedEvent;
+
+                                if (event != null) {
+                                  _generateAndShareReceipt(
+                                    name: userName,
+                                    tables: tables,
+                                    eventName: event.name,
+                                    eventDate: DateFormat('dd/MM/yyyy').format(
+                                      event.date,
+                                    ), // Formata a data se for DateTime
+                                  );
+                                }
+                              },
                             )
                           : null,
+                    ),
+                    const SizedBox(height: 24),
+                  ] else if (isPaid && !isPix) ...[
+                    _buildInfoTile(
+                      label: "COMPROVANTE ANEXADO",
+                      value: "Gerar recibo em dinheiro",
+                      icon: Icons.receipt_long_rounded,
+                      trailing: IconButton(
+                        icon: Icon(
+                          Icons.share_rounded,
+                          color: primaryDark,
+                          size: 22,
+                        ),
+                        onPressed: () {
+                          final eventProvider = Provider.of<TableProvider>(
+                            context,
+                            listen: false,
+                          );
+                          final event = eventProvider.selectedEvent;
+
+                          if (event != null) {
+                            _generateAndShareReceipt(
+                              name: userName,
+                              tables: tables,
+                              eventName: event.name,
+                              eventDate: DateFormat('dd/MM/yyyy').format(
+                                event.date,
+                              ), // Formata a data se for DateTime
+                            );
+                          }
+                        },
+                      ),
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -220,25 +282,27 @@ class ReservationDetailScreen extends StatelessWidget {
   }
 
   // --- MÉTODO PRINCIPAL DE GERAÇÃO DE RECIBO ---
+  // --- MÉTODO PRINCIPAL DE GERAÇÃO DE RECIBO ATUALIZADO ---
   Future<void> _generateAndShareReceipt({
     required String name,
     required List<TableModel> tables,
+    required String eventName, // Novo campo
+    required String eventDate, // Novo campo
   }) async {
     final pdf = pw.Document();
-    final dateStr = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
+    final dateGenerationStr = DateFormat(
+      'dd/MM/yyyy HH:mm',
+    ).format(DateTime.now());
     final tablesStr = tables.map((t) => t.number).join(', ');
     final firstTable = tables.first;
 
-    // Identifica se é Pix ou Dinheiro com base nos dados da mesa
     final bool isPix = firstTable.paymentMethod == "Pix";
     final totalValue = tables.length * firstTable.price;
 
-    // Cores do seu App
     const primaryColor = PdfColor.fromInt(0xFF2D3250);
     const accentColor = PdfColor.fromInt(0xFF7077A1);
     const successColor = PdfColor.fromInt(0xFF2E7D32);
 
-    // Lógica para carregar a imagem do comprovante se for arquivo local
     pw.MemoryImage? proofImage;
     if (isPix && firstTable.receiptPath != null) {
       try {
@@ -296,18 +360,41 @@ class ReservationDetailScreen extends StatelessWidget {
                       _buildPdfStatusBadge(successColor),
                     ],
                   ),
-                  pw.SizedBox(height: 10),
+                  pw.SizedBox(height: 8),
+
+                  // --- INFORMAÇÕES DO EVENTO ---
+                  pw.Center(
+                    child: pw.Text(
+                      eventName.toUpperCase(),
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                        color: primaryColor,
+                      ),
+                    ),
+                  ),
+                  pw.Center(
+                    child: pw.Text(
+                      "Data do Evento: $eventDate",
+                      style: const pw.TextStyle(
+                        fontSize: 9,
+                        color: PdfColors.grey700,
+                      ),
+                    ),
+                  ),
+
+                  pw.SizedBox(height: 8),
                   pw.Divider(thickness: 0.5, color: accentColor),
-                  pw.SizedBox(height: 10),
+                  pw.SizedBox(height: 8),
 
                   // --- DADOS DO CLIENTE ---
                   _buildPdfRow("Cliente", name.toUpperCase(), primaryColor),
                   _buildPdfRow("Mesas", tablesStr, primaryColor),
-                  _buildPdfRow("Data", dateStr, primaryColor),
+                  _buildPdfRow("Emitido em", dateGenerationStr, primaryColor),
 
                   pw.SizedBox(height: 15),
 
-                  // --- SEÇÃO DO COMPROVANTE (SÓ APARECE SE FOR PIX) ---
+                  // --- SEÇÃO DO COMPROVANTE ---
                   if (isPix && proofImage != null) ...[
                     pw.Center(
                       child: pw.Text(
@@ -322,7 +409,7 @@ class ReservationDetailScreen extends StatelessWidget {
                     pw.SizedBox(height: 5),
                     pw.Container(
                       alignment: pw.Alignment.center,
-                      height: 150, // Um pouco maior para melhor visualização
+                      height: 140,
                       width: double.infinity,
                       child: pw.Image(proofImage, fit: pw.BoxFit.contain),
                     ),
@@ -378,17 +465,22 @@ class ReservationDetailScreen extends StatelessWidget {
 
     final bytes = await pdf.save();
 
-    // Compartilhamento
-    await Share.shareXFiles([
-      XFile.fromData(
-        bytes,
-        name: 'Recibo_${name.replaceAll(' ', '_')}.pdf',
-        mimeType: 'application/pdf',
-      ),
-    ], text: 'Olá $name, aqui está seu recibo confirmado!');
+    await Share.shareXFiles(
+      [
+        XFile.fromData(
+          bytes,
+          name: 'Recibo_${name.replaceAll(' ', '_')}.pdf',
+          mimeType: 'application/pdf',
+        ),
+      ],
+      text:
+          '✅ *Pagamento Confirmado!*\n\n'
+          'Olá, $name! Segue o seu recibo para o evento *$eventName*.\n'
+          'Mesas: $tablesStr\n'
+          'Data do Evento: $eventDate\n\n'
+          'Muito obrigado pela preferência! 😊',
+    );
   }
-
-  // --- MÉTODOS AUXILIARES (DENTRO DA MESMA CLASSE) ---
 
   pw.Widget _buildPdfRow(String label, String value, PdfColor valueColor) {
     return pw.Padding(
@@ -560,21 +652,21 @@ class ReservationDetailScreen extends StatelessWidget {
                                           );
 
                                       // Garantimos que o loading apareça por pelo menos 1 segundo
-                                      await Future.wait([
-                                        provider.clearReservation(userName),
-                                        Future.delayed(
-                                          const Duration(
-                                            seconds: 2,
-                                            milliseconds: 50,
-                                          ),
-                                        ),
-                                      ]);
+                                      await provider.clearReservation(userName);
+                                      await Future.delayed(
+                                        const Duration(seconds: 2),
+                                      );
 
                                       if (context.mounted) {
-                                        Navigator.pop(context); // Fecha diálogo
-                                        Navigator.pop(
+                                        // 1. Fecha o Diálogo
+                                        Navigator.of(
                                           context,
-                                        ); // Volta tela principal
+                                          rootNavigator: true,
+                                        ).pop();
+
+                                        // 2. Volta para a tela anterior (Home/Mapa)
+                                        // Se você usou pushAndRemoveUntil, o pop aqui levará para a route.isFirst
+                                        Navigator.of(context).pop();
 
                                         ScaffoldMessenger.of(
                                           context,

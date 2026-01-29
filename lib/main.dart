@@ -1,22 +1,20 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:mesasnsps/model/provider/preferences_provider.dart';
+import 'package:mesasnsps/firebase_options.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
-import 'package:mesasnsps/screens/components/splash_screen.dart'; // Importe sua nova tela aqui
+import 'package:mesasnsps/screens/components/splash_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // 2. Tenta conectar com o Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   runApp(
     MultiProvider(
-      providers: [
-        // O TableProvider que você já tinha
-        ChangeNotifierProvider(create: (_) => TableProvider()),
-
-        // ADICIONE O PreferencesProvider AQUI:
-        ChangeNotifierProvider(create: (_) => PreferencesProvider()),
-      ],
+      providers: [ChangeNotifierProvider(create: (_) => TableProvider())],
       child: const MyApp(),
     ),
   );

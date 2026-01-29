@@ -2,9 +2,7 @@ import 'package:currency_text_input_formatter/currency_text_input_formatter.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mesasnsps/model/event.dart';
-import 'package:mesasnsps/model/provider/preferences_provider.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
-import 'package:mesasnsps/screens/components/welcome_component.dart';
 import 'package:mesasnsps/screens/main/table_map_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
@@ -19,54 +17,6 @@ class EventSelectionScreen extends StatefulWidget {
 class _EventSelectionScreenState extends State<EventSelectionScreen> {
   String _searchQuery = "";
   final Color primaryDark = const Color(0xFF2D3250);
-  final GlobalKey _keyAddEvent = GlobalKey();
-
-  final GlobalKey _keyFirstEventCard = GlobalKey();
-  final GlobalKey _keyArchive = GlobalKey();
-  final GlobalKey _keyDelete = GlobalKey();
-
-  List<TargetFocus> targets = [];
-
-  void _initTutorial() {
-    targets.clear();
-    targets.add(
-      TargetFocus(
-        identify: "AddEvent",
-        keyTarget: _keyAddEvent,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            child: WelcomeComponent.buildTutorialStep(
-              "Comece criando seu primeiro evento aqui!",
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final prefs = Provider.of<PreferencesProvider>(context, listen: false);
-
-      if (prefs.isFirstTime) {
-        await WelcomeComponent.show(context);
-        final currentPrefs = Provider.of<PreferencesProvider>(
-          context,
-          listen: false,
-        );
-        if (currentPrefs.isTutorialEnabled) {
-          _initTutorial();
-          await Future.delayed(const Duration(milliseconds: 500));
-          if (mounted) {
-            _showTutorial();
-          }
-        }
-      }
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +42,6 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
         actions: [
           // Botão de Novo Evento agora na barra superior
           TextButton.icon(
-            key: _keyAddEvent,
             style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               minimumSize: Size.zero,
@@ -132,10 +81,7 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                         provider,
                         event,
                         isSelected,
-                        cardKey: index == 0 ? _keyFirstEventCard : null,
-                        menuKey: index == 0
-                            ? _keyArchive
-                            : null, // Passamos a chave que você já tem para o menuKey
+                        // Passamos a chave que você já tem para o menuKey
                       );
                     },
                   ),
@@ -143,30 +89,6 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
         ],
       ),
     );
-  }
-
-  void _showTutorial() {
-    if (targets.isEmpty) return; // Segurança contra lista vazia
-
-    final tutorial = TutorialCoachMark(
-      targets: targets,
-      colorShadow: const Color(0xFF2D3250),
-      opacityShadow: 0.8,
-      textSkip: "PULAR",
-      paddingFocus: 10,
-      onFinish: () => context.read<PreferencesProvider>().completeTutorial(
-        'event_selection',
-      ),
-      onSkip: () {
-        context.read<PreferencesProvider>().completeTutorial('event_selection');
-        return true;
-      },
-    );
-
-    // Executa o show logo após o build estar totalmente estável
-    Future.delayed(Duration.zero, () {
-      tutorial.show(context: context);
-    });
   }
 
   void _showAddEventDialog(BuildContext context, TableProvider provider) {
@@ -198,25 +120,6 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
       barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
-          // DISPARO ÚNICO DO TUTORIAL
-          final prefProvider = Provider.of<PreferencesProvider>(
-            context,
-            listen: false,
-          );
-
-          if (!tutorialExibido && prefProvider.isTutorialEnabled) {
-            tutorialExibido = true;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              _showModalTutorial(
-                keyFieldName,
-                keyFieldDate,
-                keyFieldQtd,
-                keyFieldPrice,
-                keyBtnSave,
-              );
-            });
-          }
-
           return AlertDialog(
             insetPadding: const EdgeInsets.symmetric(
               horizontal: 16,
@@ -384,14 +287,11 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
 
                           if (context.mounted) {
                             Navigator.pop(context); // Fecha o modal
-
-                            // APÓS FECHAR, DISPARA O TUTORIAL DA LISTA
-                            // Adicionamos um delay para o evento aparecer na lista antes do tutorial
-                            Future.delayed(
-                              const Duration(milliseconds: 600),
-                              () {
-                                _showListTutorial();
-                              },
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text("Evento criado com sucesso!"),
+                                backgroundColor: TableMapScreen.primaryDark,
+                              ),
                             );
                           }
                         } catch (e) {
@@ -420,168 +320,6 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
         },
       ),
     );
-  }
-
-  void _showListTutorial() {
-    // Só mostramos se houver eventos na lista
-    if (targets.isEmpty) return;
-
-    List<TargetFocus> listTargets = [];
-
-    listTargets.add(
-      TargetFocus(
-        identify: "FirstCard",
-        keyTarget: _keyFirstEventCard,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            child: WelcomeComponent.buildTutorialStep(
-              "Excelente! Seu evento apareceu aqui. Toque no card para gerenciar os mapas das mesas.",
-            ),
-          ),
-        ],
-      ),
-    );
-
-    listTargets.add(
-      TargetFocus(
-        identify: "ArchiveBtn",
-        keyTarget: _keyArchive,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            child: WelcomeComponent.buildTutorialStep(
-              "Neste ícone você arquiva o evento. Ele sai da lista principal mas não é apagado.",
-            ),
-          ),
-        ],
-      ),
-    );
-
-    listTargets.add(
-      TargetFocus(
-        identify: "DeleteBtn",
-        keyTarget: _keyDelete,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top, // Mostrar em cima para não cobrir o card
-            child: WelcomeComponent.buildTutorialStep(
-              "Atenção: Aqui você exclui o evento para sempre. Use com cuidado!",
-            ),
-          ),
-        ],
-      ),
-    );
-
-    TutorialCoachMark(
-      targets: listTargets,
-      colorShadow: primaryDark,
-      opacityShadow: 0.8,
-      textSkip: "FINALIZAR",
-      onFinish: () =>
-          context.read<PreferencesProvider>().completeTutorial('full_flow'),
-    ).show(context: context);
-  }
-
-  void _showModalTutorial(
-    GlobalKey nameKey,
-    GlobalKey dateKey,
-    GlobalKey qtdKey,
-    GlobalKey priceKey,
-    GlobalKey saveKey,
-  ) {
-    List<TargetFocus> modalTargets = [];
-
-    modalTargets.add(
-      TargetFocus(
-        identify: "TargetName",
-        keyTarget: nameKey,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            child: WelcomeComponent.buildTutorialStep(
-              "Dê um nome ao seu evento (ex: 1° noite do arraial).",
-            ),
-          ),
-        ],
-      ),
-    );
-
-    modalTargets.add(
-      TargetFocus(
-        identify: "TargetDate",
-        keyTarget: dateKey,
-        contents: [
-          TargetContent(
-            align: ContentAlign.bottom,
-            child: WelcomeComponent.buildTutorialStep(
-              "Selecione a data em que o evento ocorrerá.",
-            ),
-          ),
-        ],
-      ),
-    );
-
-    modalTargets.add(
-      TargetFocus(
-        identify: "TargetQtd",
-        keyTarget: qtdKey,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            child: WelcomeComponent.buildTutorialStep(
-              "Escolha a quantidade de mesas desse evento!",
-            ),
-          ),
-        ],
-      ),
-    );
-    modalTargets.add(
-      TargetFocus(
-        identify: "TargetPrice",
-        keyTarget: priceKey,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            child: WelcomeComponent.buildTutorialStep(
-              "Escolha o preço unitário de cada mesa nesse evento.",
-            ),
-          ),
-        ],
-      ),
-    );
-    modalTargets.add(
-      TargetFocus(
-        identify: "TargetSave",
-        keyTarget: saveKey,
-        contents: [
-          TargetContent(
-            align: ContentAlign.top,
-            child: WelcomeComponent.buildTutorialStep(
-              "Tudo pronto? Clique aqui para criar seu evento!",
-            ),
-          ),
-        ],
-      ),
-    );
-
-    TutorialCoachMark(
-      targets: modalTargets,
-      colorShadow: const Color(0xFF2D3250),
-      opacityShadow: 0.8,
-      textSkip: "ENTENDI",
-      // DISPARA QUANDO CHEGA AO FINAL DE TODOS OS PASSOS
-      onFinish: () {
-        context.read<PreferencesProvider>().disableTutorial();
-        print("Tutorial do modal finalizado");
-      },
-      // DISPARA QUANDO CLICA EM "ENTENDI" (SKIP)
-      onSkip: () {
-        context.read<PreferencesProvider>().disableTutorial();
-        print("Usuário pulou o tutorial");
-        return true; // Retorne true para fechar o tutorial
-      },
-    ).show(context: context);
   }
 
   void _confirmEventSelection(
@@ -688,10 +426,8 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
     BuildContext context,
     TableProvider provider,
     EventModel event,
-    bool isSelected, {
-    GlobalKey? cardKey, // Adicionado
-    GlobalKey? menuKey, // Adicionado (para o tutorial focar no menu de ações)
-  }) {
+    bool isSelected,
+  ) {
     // Formata a data para dd/MM/yy
     String formattedDate = event.date?.toString() ?? "Sem data";
 
@@ -706,7 +442,6 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
     }
 
     return AnimatedContainer(
-      key: cardKey, // ATRIBUIÇÃO DA CHAVE DO CARD
       duration: const Duration(milliseconds: 300),
       margin: const EdgeInsets.only(bottom: 16, left: 4, right: 4),
       decoration: BoxDecoration(
@@ -793,12 +528,7 @@ class _EventSelectionScreenState extends State<EventSelectionScreen> {
                               ),
                             ),
                             // Passamos a chave para o botão de menu
-                            _buildPopupMenu(
-                              context,
-                              provider,
-                              event,
-                              menuKey: menuKey,
-                            ),
+                            _buildPopupMenu(context, provider, event),
                           ],
                         ),
                         const SizedBox(height: 20),
