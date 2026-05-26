@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mesasnsps/model/provider/table_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:mesasnsps/screens/main/layout_editor_screen.dart';
+import 'package:mesasnsps/model/provider/auth_provider.dart' as app_auth;
+import 'package:mesasnsps/screens/auth/login_screen.dart';
 
 class ConfigsScreen extends StatefulWidget {
   const ConfigsScreen({super.key});
@@ -246,6 +249,41 @@ class _ConfigsScreenState extends State<ConfigsScreen> {
               suffix: "R\$",
             ),
 
+            const SizedBox(height: 16),
+
+            // NOVO: BOTÃO EDITOR DE LAYOUT
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: primaryDark,
+                  side: const BorderSide(color: primaryDark, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 0,
+                ),
+                icon: const Icon(Icons.design_services_outlined),
+                label: const Text(
+                  "ABRIR EDITOR VISUAL DE LAYOUT",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const LayoutEditorScreen(),
+                    ),
+                  );
+                },
+              ),
+            ),
+
             const SizedBox(height: 40),
 
             // BOTÃO DE ATUALIZAÇÃO
@@ -281,6 +319,43 @@ class _ConfigsScreenState extends State<ConfigsScreen> {
                           ),
                         ),
                 ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            // BOTÃO SAIR DA CONTA
+            SizedBox(
+              width: double.infinity,
+              height: 55,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.red[700],
+                  side: BorderSide(color: Colors.red[300]!, width: 2),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text(
+                  "SAIR DA CONTA",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+                onPressed: () async {
+                  final provider = Provider.of<TableProvider>(context, listen: false);
+                  provider.clearEvents();
+                  
+                  final authProvider = Provider.of<app_auth.AuthProvider>(context, listen: false);
+                  await authProvider.signOut();
+                  
+                  if (mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (context) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  }
+                },
               ),
             ),
             const SizedBox(height: 120),

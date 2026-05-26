@@ -1,7 +1,11 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:mesasnsps/model/provider/auth_provider.dart' as app_auth;
+import 'package:mesasnsps/model/provider/table_provider.dart';
+import 'package:mesasnsps/screens/auth/login_screen.dart';
+import 'package:mesasnsps/screens/auth/restricted_screen.dart';
 import 'package:mesasnsps/screens/main/home_navigation_screen.dart';
-import 'package:mesasnsps/screens/components/welcome_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -39,30 +43,52 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 3500));
     if (!mounted) return;
 
-    final bool showWelcome = await _checkSessionExpired();
+    final firebaseUser = FirebaseAuth.instance.currentUser;
 
-    if (mounted) {
+    if (firebaseUser == null) {
+      // Não está logado → vai para Login
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            transitionDuration: const Duration(milliseconds: 800),
+            pageBuilder: (_, __, ___) => const LoginScreen(),
+            transitionsBuilder: (_, animation, __, child) =>
+                FadeTransition(opacity: animation, child: child),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Está logado → carrega dados do usuário
+    final authProvider = context.read<app_auth.AuthProvider>();
+    await authProvider.reloadUser(firebaseUser.uid);
+
+    if (!mounted) return;
+
+    if (authProvider.isOrganizador) {
+      context.read<TableProvider>().listenToEvents(firebaseUser.uid);
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 800),
-          pageBuilder: (_, __, ___) => showWelcome
-              ? const WelcomeScreen()
-              : const HomeNavigationScreen(),
-          transitionsBuilder: (_, animation, __, child) {
-            return FadeTransition(opacity: animation, child: child);
-          },
+          pageBuilder: (_, __, ___) => const HomeNavigationScreen(),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+        ),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 800),
+          pageBuilder: (_, __, ___) => const RestrictedScreen(),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
         ),
       );
     }
-  }
-
-  Future<bool> _checkSessionExpired() async {
-    final prefs = await SharedPreferences.getInstance();
-    final int? lastEntry = prefs.getInt('last_interaction');
-    if (lastEntry == null) return true;
-    final lastDate = DateTime.fromMillisecondsSinceEpoch(lastEntry);
-    return DateTime.now().difference(lastDate).inMinutes > 240;
   }
 
   @override

@@ -127,104 +127,7 @@ class TableMapScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: InteractiveViewer(
-        boundaryMargin: const EdgeInsets.all(100),
-        minScale: 0.1,
-        maxScale: 2.0,
-        child: GridView.builder(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 250),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 9,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-          ),
-          itemCount: provider.tables.length + 18,
-          itemBuilder: (context, index) {
-            List<int> areaCentral = [3, 4, 5, 12, 13, 14];
-            if (areaCentral.contains(index)) {
-              return Container(
-                decoration: BoxDecoration(
-                  color: primaryDark,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: index == 4
-                    ? const Icon(
-                        Icons.mic_external_on,
-                        color: Colors.white,
-                        size: 18,
-                      )
-                    : null,
-              );
-            }
-
-            int tablesToSubtract = 0;
-            if (index > 5) tablesToSubtract += 3;
-            if (index > 14) tablesToSubtract += 3;
-            int tableIndex = index - tablesToSubtract;
-
-            if (tableIndex >= provider.tables.length || tableIndex < 0)
-              return const SizedBox.shrink();
-
-            final table = provider.tables[tableIndex];
-            final isSelected = provider.selectedNumbers.contains(table.number);
-            bool isHisTable =
-                editingName != null && table.userName == editingName;
-
-            return GestureDetector(
-              onTap: () {
-                if (table.status == TableStatusEnum.available ||
-                    isSelected ||
-                    isHisTable) {
-                  provider.toggleTableSelection(table.number);
-                }
-              },
-              onLongPress: () {
-                // Lógica de "segurar" (clique longo)
-                if (table.status != TableStatusEnum.available) {
-                  _showReservationDialog(
-                    context,
-                    [table.number],
-                    provider,
-                    initialName: table.userName,
-                    initialPhone: table.phoneNumber,
-                    initialPaid: table.status == TableStatusEnum.paid,
-                    initialMethod: table.paymentMethod,
-                    initialPath: table.receiptPath,
-                  );
-                }
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? colorSelecionada
-                      : _getBgColor(table.status),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: isSelected
-                        ? colorSelecionadaBorder
-                        : _getTextColor(table.status).withOpacity(0.2),
-                    width: isSelected ? 2 : 1,
-                  ),
-                ),
-                child: Center(
-                  child: Text(
-                    "${table.number}",
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isSelected
-                          ? colorSelecionadaBorder
-                          : _getTextColor(table.status),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-
+      body: _buildBodyContent(context, provider, editingName),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: provider.selectedNumbers.isNotEmpty
           ? Padding(
@@ -264,6 +167,219 @@ class TableMapScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildBodyContent(BuildContext context, TableProvider provider, String? editingName) {
+    bool hasCustomLayout = provider.tables.any((t) => t.x != null && t.y != null) || 
+        (provider.selectedEvent?.obstacles.isNotEmpty ?? false);
+
+    if (hasCustomLayout) {
+      return _buildCustomGrid(context, provider, editingName);
+    } else {
+      return _buildSequentialGrid(context, provider, editingName);
+    }
+  }
+
+  Widget _buildCustomGrid(BuildContext context, TableProvider provider, String? editingName) {
+    final event = provider.selectedEvent!;
+    final unassignedTables = provider.tables.where((t) => t.x == null || t.y == null).toList();
+
+    final screenWidth = MediaQuery.of(context).size.width;
+    final padding = 20.0;
+    final availableWidth = screenWidth - (padding * 2);
+    final cellSize = availableWidth / event.gridColumns;
+    final gridHeight = event.gridRows * cellSize;
+
+    return InteractiveViewer(
+      boundaryMargin: const EdgeInsets.all(100),
+      minScale: 0.5,
+      maxScale: 3.0,
+      constrained: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 250),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: availableWidth,
+              height: gridHeight,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Obstacles
+                  ...event.obstacles.map((o) {
+                    return Positioned(
+                      left: o.x * cellSize,
+                      top: o.y * cellSize,
+                      width: o.width * cellSize,
+                      height: o.height * cellSize,
+                      child: Container(
+                        margin: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: primaryDark,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(color: primaryDark.withOpacity(0.3), blurRadius: 4, offset: const Offset(0, 2))
+                          ],
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          o.label,
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    );
+                  }),
+
+                  // Tables
+                  ...provider.tables.where((t) => t.x != null && t.y != null).map((t) {
+                    return Positioned(
+                      left: t.x! * cellSize,
+                      top: t.y! * cellSize,
+                      width: cellSize,
+                      height: cellSize,
+                      child: Padding(
+                        padding: const EdgeInsets.all(4.0),
+                        child: _buildTableItem(context, provider, t, editingName),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+            ),
+            if (unassignedTables.isNotEmpty) ...[
+              const SizedBox(height: 32),
+              const Text(
+                "Mesas Sem Posição Definida", 
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: primaryDark)
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: availableWidth,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: unassignedTables.map((t) {
+                    return SizedBox(
+                      width: cellSize - 8,
+                      height: cellSize - 8,
+                      child: _buildTableItem(context, provider, t, editingName),
+                    );
+                  }).toList(),
+                ),
+              )
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSequentialGrid(BuildContext context, TableProvider provider, String? editingName) {
+    return InteractiveViewer(
+      boundaryMargin: const EdgeInsets.all(100),
+      minScale: 0.1,
+      maxScale: 2.0,
+      child: GridView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 250),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 9,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+      ),
+      itemCount: provider.tables.length + 18,
+      itemBuilder: (context, index) {
+        List<int> areaCentral = [3, 4, 5, 12, 13, 14];
+        if (areaCentral.contains(index)) {
+          return Container(
+            decoration: BoxDecoration(
+              color: primaryDark,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: index == 4
+                ? const Icon(
+                    Icons.mic_external_on,
+                    color: Colors.white,
+                    size: 18,
+                  )
+                : null,
+          );
+        }
+
+        int tablesToSubtract = 0;
+        if (index > 5) tablesToSubtract += 3;
+        if (index > 14) tablesToSubtract += 3;
+        int tableIndex = index - tablesToSubtract;
+
+        if (tableIndex >= provider.tables.length || tableIndex < 0) {
+          return const SizedBox.shrink();
+        }
+
+        final table = provider.tables[tableIndex];
+        return _buildTableItem(context, provider, table, editingName);
+      },
+    ),
+    );
+  }
+
+  Widget _buildTableItem(BuildContext context, TableProvider provider, TableModel table, String? editingName) {
+    final isSelected = provider.selectedNumbers.contains(table.number);
+    bool isHisTable = editingName != null && table.userName == editingName;
+
+    return GestureDetector(
+      onTap: () {
+        if (table.status == TableStatusEnum.available ||
+            isSelected ||
+            isHisTable) {
+          provider.toggleTableSelection(table.number);
+        }
+      },
+      onLongPress: () {
+        if (table.status != TableStatusEnum.available) {
+          _showReservationDialog(
+            context,
+            [table.number],
+            provider,
+            initialName: table.userName,
+            initialPhone: table.phoneNumber,
+            initialPaid: table.status == TableStatusEnum.paid,
+            initialMethod: table.paymentMethod,
+            initialPath: table.receiptPath,
+          );
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorSelecionada
+              : _getBgColor(table.status),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: isSelected
+                ? colorSelecionadaBorder
+                : _getTextColor(table.status).withOpacity(0.2),
+            width: isSelected ? 2 : 1,
+          ),
+          boxShadow: isSelected ? [
+            BoxShadow(color: colorSelecionadaBorder.withOpacity(0.3), blurRadius: 8, spreadRadius: 1)
+          ] : [],
+        ),
+        child: Center(
+          child: Text(
+            "${table.number}",
+            style: TextStyle(
+              fontSize: 10,
+              color: isSelected
+                  ? colorSelecionadaBorder
+                  : _getTextColor(table.status),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Color _getBgColor(TableStatusEnum status) {
     if (status == TableStatusEnum.available) return colorLivre;
     if (status == TableStatusEnum.reserved) return colorReservada;
@@ -276,6 +392,7 @@ class TableMapScreen extends StatelessWidget {
     return colorPagaText;
   }
 }
+
 
 void _showReservationDialog(
   BuildContext context,

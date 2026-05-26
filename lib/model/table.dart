@@ -8,11 +8,19 @@ class TableModel {
   String? receiptPath;
   TableStatusEnum status;
   double price;
+  int? x;
+  int? y;
+
   Map<String, dynamic> toMap() => {
     'number': number,
     'status': status.index, // Guardamos o index do Enum
     'userName': userName,
     'phoneNumber': phoneNumber,
+    'paymentMethod': paymentMethod,
+    'receiptPath': receiptPath,
+    'price': price,
+    'x': x,
+    'y': y,
   };
   factory TableModel.fromMap(Map<String, dynamic> map) {
     return TableModel(
@@ -23,6 +31,8 @@ class TableModel {
       paymentMethod: map['paymentMethod'],
       receiptPath: map['receiptPath'],
       price: (map['price'] ?? 0.0).toDouble(),
+      x: map['x'],
+      y: map['y'],
     );
   }
   TableModel({
@@ -33,5 +43,7 @@ class TableModel {
     this.receiptPath,
     this.status = TableStatusEnum.available,
     this.price = 0.0,
+    this.x,
+    this.y,
   });
 }
